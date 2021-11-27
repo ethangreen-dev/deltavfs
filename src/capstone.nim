@@ -1,4 +1,33 @@
+import os
+
 import capstone/x86
+import nimterop/[build, cimport]
+
+static:
+    let currentDir = currentSourcePath().splitPath().head
+
+    let capstoneDir = currentDir / "/capstone/private/"
+    let cmakeDefs = @[
+        "CAPSTONE_ARCHITECTURE_DEFAULT=OFF",
+        "CAPSTONE_X86_SUPPORT=1",
+        "CAPSTONE_BUILD_STATIC=1"
+    ]
+    let cmakeFlags = flagBuild("-D$#", cmakeDefs) & " .."
+    let configTarget = "Release"
+
+    cmake(
+        capstoneDir / "build", 
+        "capstone.sln", 
+        cmakeFlags
+    )
+
+    cmake(
+        capstoneDir / "build", 
+        configTarget / "capstone.dll", 
+        "--build . --config " & configTarget
+    )
+
+    cpFile(capstoneDir / "build" / configTarget / "capstone.dll", currentDir / "../bin/capstone.dll")
 
 const
     CsMnemonicSize = 32
@@ -128,27 +157,27 @@ type CsInsn* = object
 
 type CsRegs = array[64, uint16]
 
-proc csVersion*(major: ptr int, minor: ptr int): uint                 {.importc: "cs_version", cdecl.}
-proc csSupport*(query: int): bool                                     {.importc: "cs_support", cdecl.}
+proc csVersion*(major: ptr int, minor: ptr int): uint                 {.importc: "cs_version", dynlib: "capstone.dll".}
+proc csSupport*(query: int): bool                                     {.importc: "cs_support", dynlib: "capstone.dll".}
 
-proc csOpen*(arch: CsArch, mode: CsMode, handle: ptr Csh): CsErr      {.importc: "cs_open", cdecl.}
-proc csClose*(handle: ptr Csh)                                        {.importc: "cs_close", cdecl.}
-proc csOption*(handle: Csh, optType: CsOptType, value: csize_t)       {.importc: "cs_option", cdecl.}
+proc csOpen*(arch: CsArch, mode: CsMode, handle: ptr Csh): CsErr      {.importc: "cs_open", dynlib: "capstone.dll".}
+proc csClose*(handle: ptr Csh)                                        {.importc: "cs_close", dynlib: "capstone.dll".}
+proc csOption*(handle: Csh, optType: CsOptType, value: CsOptValue)    {.importc: "cs_option", dynlib: "capstone.dll".}
 
-proc csErrNo*(handle: Csh): CsErr                                     {.importc: "cs_errno", cdecl.}
-proc csStrErr*(code: CsErr): cstring                                  {.importc: "cs_strerror", cdecl.}
+proc csErrNo*(handle: Csh): CsErr                                     {.importc: "cs_errno", dynlib: "capstone.dll".}
+proc csStrErr*(code: CsErr): cstring                                  {.importc: "cs_strerror", dynlib: "capstone.dll".}
 
 proc csDisasm*(
     handle: Csh, 
     code: ptr byte, 
-    codeSize: csize_t,
+    codeSize: uint,
     address: uint64,
-    count: csize_t,
+    count: uint,
     insn: ptr ptr CsInsn
-): csize_t                                                            {.importc: "cs_disasm", cdecl.}
+): csize_t                                                            {.importc: "cs_disasm", dynlib: "capstone.dll".}
 
-proc csFree*(insn: ptr CsInsn, count: csize_t)                        {.importc: "cs_free", cdecl.}
-proc csMalloc*(handle: Csh): ptr CsInsn                               {.importc: "cs_malloc", cdecl.}
+proc csFree*(insn: ptr CsInsn, count: csize_t)                        {.importc: "cs_free", dynlib: "capstone.dll".}
+proc csMalloc*(handle: Csh): ptr CsInsn                               {.importc: "cs_malloc", dynlib: "capstone.dll".}
 
 proc csDisasmIter*(
     handle: Csh, 
@@ -156,23 +185,23 @@ proc csDisasmIter*(
     codeSize: ptr csize_t,
     address: ptr uint64,
     insn: ptr CsInsn
-): bool                                                               {.importc: "cs_disasm_iter", cdecl.}
+): bool                                                               {.importc: "cs_disasm_iter", dynlib: "capstone.dll".}
 
-proc csRegName*(handle: Csh, regId: uint): cstring                    {.importc: "cs_reg_name", cdecl.}
-proc csInsnName*(handle: Csh, insnId: uint): cstring                  {.importc: "cs_insn_name", cdecl.}
-proc csGroupName*(handle: Csh, groupId: uint): cstring                {.importc: "cs_group_name", cdecl.}
-proc csInsnGroup*(handle: Csh, insn: ptr CsInsn, groupId: uint): bool {.importc: "cs_insn_group", cdecl.}
+proc csRegName*(handle: Csh, regId: uint): cstring                    {.importc: "cs_reg_name", dynlib: "capstone.dll".}
+proc csInsnName*(handle: Csh, insnId: uint): cstring                  {.importc: "cs_insn_name", dynlib: "capstone.dll".}
+proc csGroupName*(handle: Csh, groupId: uint): cstring                {.importc: "cs_group_name", dynlib: "capstone.dll".}
+proc csInsnGroup*(handle: Csh, insn: ptr CsInsn, groupId: uint): bool {.importc: "cs_insn_group", dynlib: "capstone.dll".}
 
-proc csRegRead*(handle: Csh, insn: ptr CsInsn, regId: uint): bool     {.importc: "cs_reg_read", cdecl.}
-proc csRegWrite*(handle: Csh, insn: ptr CsInsn, regId: uint): bool    {.importc: "cs_reg_write", cdecl.}
+proc csRegRead*(handle: Csh, insn: ptr CsInsn, regId: uint): bool     {.importc: "cs_reg_read", dynlib: "capstone.dll".}
+proc csRegWrite*(handle: Csh, insn: ptr CsInsn, regId: uint): bool    {.importc: "cs_reg_write", dynlib: "capstone.dll".}
 
-proc csOpCount*(handle: Csh, insn: ptr CsInsn, opType: uint): bool    {.importc: "cs_op_count", cdecl.}
+proc csOpCount*(handle: Csh, insn: ptr CsInsn, opType: uint): bool    {.importc: "cs_op_count", dynlib: "capstone.dll".}
 proc csOpIndex*(
     handle: Csh,
     insn: ptr CsInsn,
     opType: uint,
     position: uint
-): int                                                                {.importc: "cs_op_index", cdecl.}
+): int                                                                {.importc: "cs_op_index", dynlib: "capstone.dll".}
 
 proc csRegsAccess*(
     handle: Csh,
@@ -181,5 +210,15 @@ proc csRegsAccess*(
     regsReadCount: ptr uint8,
     regsWrite: CsRegs,
     regsWriteCount: ptr uint8
-): CsErr                                                              {.importc: "cs_regs_access", cdecl.}
+): CsErr                                                              {.importc: "cs_regs_access", dynlib: "capstone.dll".}
 
+proc csDisasm*(
+    handle: Csh, 
+    code: ptr byte, 
+    codeSize: uint,
+    address: uint64,
+    count: uint,
+    insn: ptr openArray[CsInsn]
+): csize_t = 
+
+    csDisasm(handle, code, codeSize, address, count, cast[ptr ptr CsInsn](addr(insn[0])))
