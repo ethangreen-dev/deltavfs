@@ -1,9 +1,22 @@
 import strutils
 import strformat
+import typetraits
+
+import assembly
+import hookutils
 
 import distorm3
 import ptr_math
-import winim/core
+
+from winim/core import
+    VirtualAlloc,
+    GetModuleHandle,
+    NULL,
+    MEM_COMMIT,
+    IMAGE_DOS_HEADER,
+    IMAGE_NT_HEADERS,
+    IMAGE_SECTION_HEADER,
+    PAGE_EXECUTE_READWRITE
 
 proc findCave*(targetAddr: ptr byte, caveSize: int): ptr byte = 
     # Search for the start and end of the .text section.
@@ -46,21 +59,48 @@ proc findCave*(targetAddr: ptr byte, caveSize: int): ptr byte =
 
     return cast[ptr byte](newRegion)
 
-proc updateOffsets(buffer: var openArray[byte], origOffset: int, newOffset: int) = 
+proc updateOffsets*(buffer: var openArray[byte], origOffset: int, newOffset: int) = 
+    echo toHex(buffer)
+
+    let decoded = decodeBuffer(buffer)
+    # for instr in decoded:
+    #     echo $instr
+
+    echo "OPJADPOKW"
+
     var
         decodedInstructionsCount = 0'u32
-        decodedInsts: array[10, DInst]
+        decodedInsts: array[100, DInst]
 
         ci = CodeInfo(
-            codeOffset: 0x0,
+            codeOffset: uint(0x1),
             code: addr(buffer),
-            codeLen: len(buffer),
+            codeLen: int(decoded[0].size),
             dt: Decode64Bits,
-            features: DF_STOP_ON_RET
+            features: DF_RETURN_FC_ONLY
         )
 
     let res = distorm_decompose(addr ci, addr decodedInsts[0], uint32(len(decodedInsts)), addr decodedInstructionsCount)
+
+    echo res
     assert res == DECRES_SUCCESS
 
     for i in 0..<decodedInstructionsCount:
-        echo repr(decodedInsts[i])
+        if (decodedInsts[i].flags and 0xFFFF) == 0x0000:
+           continue
+
+        var test: DecodedInst
+
+        distorm_format(addr ci, addr decodedInsts[i], addr test)
+
+        # echo repr(decodedInsts[i])
+
+        # echo toHex(decodedInsts[i].flags), " ", test.instructionHex, "\t", $test
+
+        # echo &"{decodedInsts[i].opcode} {repr(decodedInsts[i].ops)}"
+
+proc getTrampoline*[T: proc](target: T): ptr T =
+    # The address of the trampoline function is stored after the jump shellcode at the target function.
+    # Stored as an int64, grab the value and cast it back to T.
+
+    cast[ptr type(T)](cast[uint](target) + JmpSize)

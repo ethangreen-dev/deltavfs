@@ -3,7 +3,7 @@ import strformat
 
 import ptr_math
 
-proc toHex*(value: seq[byte]): string=
+proc toHex*(value: openArray[byte]): string=
     var outStr: seq[string] = @[]
 
     for i in value:
@@ -13,8 +13,10 @@ proc toHex*(value: seq[byte]): string=
 
 proc iterCopyMem*(target: ptr byte, buffer: openArray[byte]) =
     for offset in 0..high(buffer):
-        echo toHex(buffer[offset])
         target[offset] = buffer[offset]
+        
+proc toByteSeq*(value: int): seq[byte] = 
+    @cast[array[8, byte]](value)
 
 # proc iterCopyMem*(target: ptr byte, buffer: ptr byte, number: int) =
 #     var temp: seq[byte] = @[]

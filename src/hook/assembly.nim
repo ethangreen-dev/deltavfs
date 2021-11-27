@@ -3,10 +3,15 @@ import sequtils
 
 import distorm3
 
+const JmpSize64 = 14
+const JmpSize32 = 0
+
+const JmpSize* = JmpSize64
+
 proc makeJmp*(destAddr: ptr byte): seq[byte] =
     # In x86_64 ASM you cannot jump to an absolute QWORD address (8 bytes). In order to work around this limitation
     # without trashing registers, the QWORD destAddr will be split into high and low DWORD values.
-    let highAddr = rotateRightBits(cast[uint](destAddr), sizeOf(uint32) * 8) and high(uint32)
+    let highAddr = cast[uint](destAddr) shr (sizeOf(uint32) * 8)
     let lowAddr = cast[uint](destAddr) and high(uint32)
 
     # Convert the uint-sized high and low values to byte arrays of length 4.
@@ -27,6 +32,28 @@ proc makeJmp*(destAddr: ptr byte): seq[byte] =
 
     shellcode
 
+proc decodeBuffer*(buffer: var openArray[byte]): seq[DecodedInst] = 
+    var instructionCount: uint32 = 0
+    var decodedInstructions: array[20, DecodedInst]
+
+    let disasm = distorm_decode(
+        codeOffset = 0x0,
+        code = addr(buffer[0]),
+        codeLen = int32(len(buffer)),
+        dt = Decode64Bits,
+        maxInstructions = 15,
+        res = addr(decodedInstructions[0]),
+        usedInstructionsCount = addr(instructionCount)
+    )
+
+    assert disasm == DECRES_SUCCESS
+
+    for instr in decodedInstructions:
+        if $instr.mnemonic == "":
+            continue
+
+        add(result, instr)
+
 proc toBoundedSize*(targetAddr: ptr byte, payloadSize: int): int = 
     var instructionCount: uint32 = 0
     var decodedInstructions: array[20, DecodedInst]
@@ -34,7 +61,7 @@ proc toBoundedSize*(targetAddr: ptr byte, payloadSize: int): int =
     let disasm = distorm_decode(
         codeOffset = 0x0,
         code = targetAddr,
-        codeLen = 15,
+        codeLen = int32(payloadSize),
         dt = Decode64Bits,
         maxInstructions = 15,
         res = addr(decodedInstructions[0]),
@@ -45,6 +72,7 @@ proc toBoundedSize*(targetAddr: ptr byte, payloadSize: int): int =
 
     for instr in decodedInstructions:
         result += int(instr.size)
+        # echo instr.mnemonic, " ", instr.operands
 
         if result >= payloadSize:
             break
