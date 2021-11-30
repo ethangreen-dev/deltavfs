@@ -1,8 +1,12 @@
 import hook
+import hook/trampoline
+
 import winim/lean
 
 proc hookMessageBoxA(hWnd: HWND, lpText: LPCTSTR, lpCaption: LPCSTR, uType: UINT): int = 
-    return MessageBoxW(0, "HOOKED YA BINKO", ":)", 0)
+    # return MessageBoxW(0, "HOOKED YA BINKO", ":)", 0)
+
+    return getTrampoline(hookMessageBoxA)[](0, "HOOKED!", "THOU HATH BEEN HOOKED", 0)
 
 proc mainThread*() {.stdcall, exportc: "mainThread", dynlib.} =
     AllocConsole()
