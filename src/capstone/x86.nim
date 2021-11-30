@@ -6,15 +6,15 @@ import
 
 ## / Calculate relative address for X86-64, given cs_insn structure
 
-template X86_REL_ADDR*(insn: untyped): untyped =
-  (if ((insn).detail.x86.operands[0].`type` == X86_OP_IMM): (uint64_t)(
+template x86Rel_Addr*(insn: untyped): untyped =
+  (if ((insn).detail.x86.operands[0].`type` == x86Op_Imm): (uint64T)(
       (insn).detail.x86.operands[0].imm) else: (
-      ((insn).address + (insn).size) + (uint64_t)(insn).detail.x86.disp))
+      ((insn).address + (insn).size) + (uint64T)(insn).detail.x86.disp))
 
 ## / X86 registers
 
 type
-  x86_reg* {.size: sizeof(cint).} = enum
+  X86Reg* {.size: sizeof(cint).} = enum
     X86_REG_INVALID = 0, X86_REG_AH, X86_REG_AL, X86_REG_AX, X86_REG_BH, X86_REG_BL,
     X86_REG_BP, X86_REG_BPL, X86_REG_BX, X86_REG_CH, X86_REG_CL, X86_REG_CS,
     X86_REG_CX, X86_REG_DH, X86_REG_DI, X86_REG_DIL, X86_REG_DL, X86_REG_DS,
@@ -148,17 +148,17 @@ const
 ## / Operand type for instruction's operands
 
 type
-  x86_op_type* {.size: sizeof(cint).} = enum
-    X86_OP_INVALID = 0,         ## /< = CS_OP_INVALID (Uninitialized).
-    X86_OP_REG,               ## /< = CS_OP_REG (Register operand).
-    X86_OP_IMM,               ## /< = CS_OP_IMM (Immediate operand).
-    X86_OP_MEM                ## /< = CS_OP_MEM (Memory operand).
+  X86OpType* {.size: sizeof(cint).} = enum
+    X86_OP_TYPE_INVALID = 0,         ## /< = CS_OP_INVALID (Uninitialized).
+    X86_OP_TYPE_REG,               ## /< = CS_OP_REG (Register operand).
+    X86_OP_TYPE_IMM,               ## /< = CS_OP_IMM (Immediate operand).
+    X86_OP_TYPE_MEM                ## /< = CS_OP_MEM (Memory operand).
 
 
 ## / XOP Code Condition type
 
 type
-  x86_xop_cc* {.size: sizeof(cint).} = enum
+  X86XopCc* {.size: sizeof(cint).} = enum
     X86_XOP_CC_INVALID = 0,     ## /< Uninitialized.
     X86_XOP_CC_LT, X86_XOP_CC_LE, X86_XOP_CC_GT, X86_XOP_CC_GE, X86_XOP_CC_EQ,
     X86_XOP_CC_NEQ, X86_XOP_CC_FALSE, X86_XOP_CC_TRUE
@@ -167,7 +167,7 @@ type
 ## / AVX broadcast type
 
 type
-  x86_avx_bcast* {.size: sizeof(cint).} = enum
+  X86AvxBcast* {.size: sizeof(cint).} = enum
     X86_AVX_BCAST_INVALID = 0,  ## /< Uninitialized.
     X86_AVX_BCAST_2,          ## /< AVX512 broadcast type {1to2}
     X86_AVX_BCAST_4,          ## /< AVX512 broadcast type {1to4}
@@ -178,7 +178,7 @@ type
 ## / SSE Code Condition type
 
 type
-  x86_sse_cc* {.size: sizeof(cint).} = enum
+  X86SseCc* {.size: sizeof(cint).} = enum
     X86_SSE_CC_INVALID = 0,     ## /< Uninitialized.
     X86_SSE_CC_EQ, X86_SSE_CC_LT, X86_SSE_CC_LE, X86_SSE_CC_UNORD, X86_SSE_CC_NEQ,
     X86_SSE_CC_NLT, X86_SSE_CC_NLE, X86_SSE_CC_ORD
@@ -187,7 +187,7 @@ type
 ## / AVX Code Condition type
 
 type
-  x86_avx_cc* {.size: sizeof(cint).} = enum
+  X86AvxCc* {.size: sizeof(cint).} = enum
     X86_AVX_CC_INVALID = 0,     ## /< Uninitialized.
     X86_AVX_CC_EQ, X86_AVX_CC_LT, X86_AVX_CC_LE, X86_AVX_CC_UNORD, X86_AVX_CC_NEQ,
     X86_AVX_CC_NLT, X86_AVX_CC_NLE, X86_AVX_CC_ORD, X86_AVX_CC_EQ_UQ,
@@ -202,7 +202,7 @@ type
 ## / AVX static rounding mode type
 
 type
-  x86_avx_rm* {.size: sizeof(cint).} = enum
+  X86AvxRm* {.size: sizeof(cint).} = enum
     X86_AVX_RM_INVALID = 0,     ## /< Uninitialized.
     X86_AVX_RM_RN,            ## /< Round to nearest
     X86_AVX_RM_RD,            ## /< Round down
@@ -213,7 +213,7 @@ type
 ## / Instruction prefixes - to be used in cs_x86.prefix[]
 
 type
-  x86_prefix* {.size: sizeof(cint).} = enum
+  X86Prefix* {.size: sizeof(cint).} = enum
     X86_PREFIX_ES = 0x26,       ## /< segment override ES (cs_x86.prefix[1]
     X86_PREFIX_CS = 0x2e,       ## /< segment override CS (cs_x86.prefix[1]
     X86_PREFIX_SS = 0x36,       ## /< segment override SS (cs_x86.prefix[1]
@@ -233,87 +233,86 @@ const
 ## / This is associated with X86_OP_MEM operand type above
 
 type
-  x86_op_mem* {.importc: "x86_op_mem", header: "x86.h", bycopy.} = object
-    segment* {.importc: "segment".}: x86_reg ## /< segment register (or X86_REG_INVALID if irrelevant)
-    base* {.importc: "base".}: x86_reg ## /< base register (or X86_REG_INVALID if irrelevant)
-    index* {.importc: "index".}: x86_reg ## /< index register (or X86_REG_INVALID if irrelevant)
-    scale* {.importc: "scale".}: cint ## /< scale for index register
-    disp* {.importc: "disp".}: int64_t ## /< displacement value
+  X86OpMem* {.bycopy.} = object
+    segment*: X86Reg           ## /< segment register (or X86_REG_INVALID if irrelevant)
+    base*: X86Reg              ## /< base register (or X86_REG_INVALID if irrelevant)
+    index*: X86Reg             ## /< index register (or X86_REG_INVALID if irrelevant)
+    scale*: cint               ## /< scale for index register
+    disp*: int64              ## /< displacement value
 
 
 ## / Instruction operand
 
 type
-  INNER_C_UNION_x86_297* {.importc: "cs_x86_op::no_name", header: "x86.h", bycopy,
-                          union.} = object
-    reg* {.importc: "reg".}: x86_reg ## /< register value for REG operand
-    imm* {.importc: "imm".}: int64_t ## /< immediate value for IMM operand
-    mem* {.importc: "mem".}: x86_op_mem ## /< base/index/scale/disp value for MEM operand
+  INNER_C_UNION_x86_297* {.bycopy, union.} = object
+    reg*: X86Reg               ## /< register value for REG operand
+    imm*: int64               ## /< immediate value for IMM operand
+    mem*: X86OpMem             ## /< base/index/scale/disp value for MEM operand
 
-  cs_x86_op* {.importc: "cs_x86_op", header: "x86.h", bycopy.} = object
-    `type`* {.importc: "type".}: x86_op_type ## /< operand type
-    ano_x86_297* {.importc: "ano_x86_297".}: INNER_C_UNION_x86_297
-    size* {.importc: "size".}: uint8_t ## / How is this operand accessed? (READ, WRITE or READ|WRITE)
-                                   ## / This field is combined of cs_ac_type.
-                                   ## / NOTE: this field is irrelevant if engine is compiled in DIET mode.
-    access* {.importc: "access".}: uint8_t ## / AVX broadcast type, or 0 if irrelevant
-    avx_bcast* {.importc: "avx_bcast".}: x86_avx_bcast ## / AVX zero opmask {z}
-    avx_zero_opmask* {.importc: "avx_zero_opmask".}: bool
+  CsX86Op* {.bycopy.} = object
+    `type`*: X86OpType         ## /< operand type
+    anoX86297*: INNER_C_UNION_x86_297
+    size*: uint8 ## / How is this operand accessed? (READ, WRITE or READ|WRITE)
+                ## / This field is combined of cs_ac_type.
+                ## / NOTE: this field is irrelevant if engine is compiled in DIET mode.
+    access*: uint8            ## / AVX broadcast type, or 0 if irrelevant
+    avxBcast*: X86AvxBcast     ## / AVX zero opmask {z}
+    avxZeroOpmask*: bool
 
-  cs_x86_encoding* {.importc: "cs_x86_encoding", header: "x86.h", bycopy.} = object
-    modrm_offset* {.importc: "modrm_offset".}: uint8_t ## / ModR/M offset, or 0 when irrelevant
+  CsX86Encoding* {.bycopy.} = object
+    modrmOffset*: uint8       ## / ModR/M offset, or 0 when irrelevant
     ## / Displacement offset, or 0 when irrelevant.
-    disp_offset* {.importc: "disp_offset".}: uint8_t
-    disp_size* {.importc: "disp_size".}: uint8_t ## / Immediate offset, or 0 when irrelevant.
-    imm_offset* {.importc: "imm_offset".}: uint8_t
-    imm_size* {.importc: "imm_size".}: uint8_t
+    dispOffset*: uint8
+    dispSize*: uint8          ## / Immediate offset, or 0 when irrelevant.
+    immOffset*: uint8
+    immSize*: uint8
 
 
 ## / Instruction structure
 
 type
-  INNER_C_UNION_x86_382* {.importc: "cs_x86::no_name", header: "x86.h", bycopy, union.} = object
-    eflags* {.importc: "eflags".}: uint64_t ## / EFLAGS updated by this instruction.
-                                        ## / This can be formed from OR combination of X86_EFLAGS_* symbols in x86.h
+  INNER_C_UNION_x86_382* {.bycopy, union.} = object
+    eflags*: uint64T           ## / EFLAGS updated by this instruction.
+                   ## / This can be formed from OR combination of X86_EFLAGS_* symbols in x86.h
     ## / FPU_FLAGS updated by this instruction.
     ## / This can be formed from OR combination of X86_FPU_FLAGS_* symbols in x86.h
-    fpu_flags* {.importc: "fpu_flags".}: uint64_t
+    fpuFlags*: uint64T
 
-  cs_x86* {.importc: "cs_x86", header: "x86.h", bycopy.} = object
-    prefix* {.importc: "prefix".}: array[4, uint8_t] ## / Instruction prefix, which can be up to 4 bytes.
-                                                ## / A prefix byte gets value 0 when irrelevant.
-                                                ## / prefix[0] indicates REP/REPNE/LOCK prefix (See X86_PREFIX_REP/REPNE/LOCK above)
-                                                ## / prefix[1] indicates segment override (irrelevant for x86_64):
-                                                ## / See X86_PREFIX_CS/SS/DS/ES/FS/GS above.
-                                                ## / prefix[2] indicates operand-size override (X86_PREFIX_OPSIZE)
-                                                ## / prefix[3] indicates address-size override (X86_PREFIX_ADDRSIZE)
+  CsX86* {.bycopy.} = object
+    prefix*: array[4, uint8T] ## / Instruction prefix, which can be up to 4 bytes.
+                           ## / A prefix byte gets value 0 when irrelevant.
+                           ## / prefix[0] indicates REP/REPNE/LOCK prefix (See X86_PREFIX_REP/REPNE/LOCK above)
+                           ## / prefix[1] indicates segment override (irrelevant for x86_64):
+                           ## / See X86_PREFIX_CS/SS/DS/ES/FS/GS above.
+                           ## / prefix[2] indicates operand-size override (X86_PREFIX_OPSIZE)
+                           ## / prefix[3] indicates address-size override (X86_PREFIX_ADDRSIZE)
     ## / Instruction opcode, which can be from 1 to 4 bytes in size.
     ## / This contains VEX opcode as well.
     ## / An trailing opcode byte gets value 0 when irrelevant.
-    opcode* {.importc: "opcode".}: array[4, uint8_t] ## / REX prefix: only a non-zero value is relevant for x86_64
-    rex* {.importc: "rex".}: uint8_t ## / Address size, which can be overridden with above prefix[5].
-    addr_size* {.importc: "addr_size".}: uint8_t ## / ModR/M byte
-    modrm* {.importc: "modrm".}: uint8_t ## / SIB value, or 0 when irrelevant.
-    sib* {.importc: "sib".}: uint8_t ## / Displacement value, valid if encoding.disp_offset != 0
-    disp* {.importc: "disp".}: int64_t ## / SIB index register, or X86_REG_INVALID when irrelevant.
-    sib_index* {.importc: "sib_index".}: x86_reg ## / SIB scale, only applicable if sib_index is valid.
-    sib_scale* {.importc: "sib_scale".}: int8_t ## / SIB base register, or X86_REG_INVALID when irrelevant.
-    sib_base* {.importc: "sib_base".}: x86_reg ## / XOP Code Condition
-    xop_cc* {.importc: "xop_cc".}: x86_xop_cc ## / SSE Code Condition
-    sse_cc* {.importc: "sse_cc".}: x86_sse_cc ## / AVX Code Condition
-    avx_cc* {.importc: "avx_cc".}: x86_avx_cc ## / AVX Suppress all Exception
-    avx_sae* {.importc: "avx_sae".}: bool ## / AVX static rounding mode
-    avx_rm* {.importc: "avx_rm".}: x86_avx_rm
-    ano_x86_382* {.importc: "ano_x86_382".}: INNER_C_UNION_x86_382
-    op_count* {.importc: "op_count".}: uint8_t
-    operands* {.importc: "operands".}: array[8, cs_x86_op] ## /< operands for this instruction.
-    encoding* {.importc: "encoding".}: cs_x86_encoding ## /< encoding information
+    opcode*: array[4, uint8T]   ## / REX prefix: only a non-zero value is relevant for x86_64
+    rex*: uint8               ## / Address size, which can be overridden with above prefix[5].
+    addrSize*: uint8          ## / ModR/M byte
+    modrm*: uint8             ## / SIB value, or 0 when irrelevant.
+    sib*: uint8               ## / Displacement value, valid if encoding.disp_offset != 0
+    disp*: int64              ## / SIB index register, or X86_REG_INVALID when irrelevant.
+    sibIndex*: X86Reg          ## / SIB scale, only applicable if sib_index is valid.
+    sibScale*: int8           ## / SIB base register, or X86_REG_INVALID when irrelevant.
+    sibBase*: X86Reg           ## / XOP Code Condition
+    xopCc*: X86XopCc           ## / SSE Code Condition
+    sseCc*: X86SseCc           ## / AVX Code Condition
+    avxCc*: X86AvxCc           ## / AVX Suppress all Exception
+    avxSae*: bool              ## / AVX static rounding mode
+    avxRm*: X86AvxRm
+    anoX86382*: INNER_C_UNION_x86_382
+    opCount*: uint8
+    operands*: array[8, CsX86Op] ## /< operands for this instruction.
+    encoding*: CsX86Encoding   ## /< encoding information
 
 
 ## / X86 instructions
 
 type
-  x86_insn* {.size: sizeof(cint).} = enum
+  X86Insn* {.size: sizeof(cint).} = enum
     X86_INS_INVALID = 0, X86_INS_AAA, X86_INS_AAD, X86_INS_AAM, X86_INS_AAS,
     X86_INS_FABS, X86_INS_ADC, X86_INS_ADCX, X86_INS_ADD, X86_INS_ADDPD,
     X86_INS_ADDPS, X86_INS_ADDSD, X86_INS_ADDSS, X86_INS_ADDSUBPD, X86_INS_ADDSUBPS,
@@ -681,7 +680,7 @@ type
 ## / Group of X86 instructions
 
 type
-  x86_insn_group* {.size: sizeof(cint).} = enum
+  X86InsnGroup* {.size: sizeof(cint).} = enum
     X86_GRP_INVALID = 0,        ## /< = CS_GRP_INVALID
                       ##  Generic groups
                       ##  all jump instructions (conditional+direct+indirect jumps)
