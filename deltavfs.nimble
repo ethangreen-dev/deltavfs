@@ -18,6 +18,9 @@ requires "winim"
 requires "ptr_math"
 requires "distorm3"
 
+requires "nimterop"
+
 # Build hook subpackage.
 after build:
-    exec("nim c --app:lib --noMain --outdir:bin/ ./src/payload.nim")
+    # exec("nim c --app:lib -d:debug --lineDir:on --debuginfo --debugger:native --embedsrc:on --noMain --gc:arc --outdir:bin/ ./src/payloaood.nim")
+    exec("nim c --app:lib --outdir:bin/ src/payload.nim")
