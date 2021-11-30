@@ -21,15 +21,52 @@ proc closeAlloc(targetAddr: ptr byte, size: int): int =
         PAGE_EXECUTE_READWRITE
     )
 
-    cast[int](newRegion)
+    return cast[int](newRegion)
 
-proc findCave*(targetAddr: ptr byte, caveSize: int): ptr byte = 
-    let newThingie = closeAlloc(targetAddr, caveSize)
+    # let startRegion = cast[int](targetAddr) + low(int32)
+    # let endRegion = cast[int](targetAddr) + high(int32)
 
-    echo &"allocated new region at {toHex(newThingie)}"
-    echo &"{cast[int](targetAddr) - newThingie} bytes away from the target address."
+    # var memoryInfo = new(MEMORY_BASIC_INFORMATION)[]
+    # var currentAddr = startRegion
 
-    return cast[ptr byte](newThingie)
+    # var newRegion = LPCVOID(NULL)
+
+    # while VirtualQuery(cast[LPCVOID](addr currentAddr), addr memoryInfo, sizeof(memoryInfo)) != 0:
+    #     if currentAddr >= endRegion:
+    #         assert 1 == 0
+
+    #     if memoryInfo.State == MEM_FREE:
+    #         let newRegion = VirtualAlloc(
+    #             memoryInfo.BaseAddress,
+    #             SIZE_T(size),
+    #             MEM_COMMIT or MEM_RESERVE,
+    #             PAGE_EXECUTE_READWRITE
+    #         )
+
+    #         if newRegion != NULL:
+    #             break
+
+    #     currentAddr += int(memoryInfo.RegionSize)
+
+    # if newRegion == NULL:
+    #     newRegion = VirtualAlloc(
+    #         cast[LPVOID](targetAddr - int(high(int32))),
+    #         SIZE_T(size),
+    #         MEM_COMMIT or MEM_RESERVE,
+    #         PAGE_EXECUTE_READWRITE
+    #     )
+
+    # cast[int](newRegion)
+
+proc findCave*(targetAddr: ptr byte, caveSize: int, useCloseAlloc: bool = true): ptr byte = 
+    if useCloseAlloc:
+        let newRegion = closeAlloc(targetAddr, caveSize)
+
+        echo &"[:] Allocated trampoline at {toHex(newRegion)}, {toHex(int32(cast[int](targetAddr) - newRegion))} bytes away from the target address."
+
+        return cast[ptr byte](newRegion)
+
+    echo &"[!] WARNING: Using experimental code-cave search algorithm..."
 
     # Search for the start and end of the .text section.
     let imageBase = cast[ptr byte](GetModuleHandle(NULL))
@@ -58,6 +95,7 @@ proc findCave*(targetAddr: ptr byte, caveSize: int): ptr byte =
     # let stop = if cast[int](targetAddr) + high(int32) > int(textSize): int(textSize) else: cast[int](targetAddr) + high(int32)
 
     let offset = int(high(int16) * 2)
+
     let start = cast[int](targetAddr) - offset
     let stop = cast[int](targetAddr) + offset
  
@@ -102,9 +140,10 @@ proc findCave*(targetAddr: ptr byte, caveSize: int): ptr byte =
     #         return addr(searchRegion[i]) - consecutive + 1
 # 
     # In the event no code caves can be found, allocate memory.
-    let newRegion = VirtualAlloc(NULL, caveSize, MEM_COMMIT, PAGE_EXECUTE_READWRITE)
+    let newRegion = closeAlloc(targetAddr, caveSize)
+    # let newRegion = VirtualAlloc(NULL, caveSize, MEM_COMMIT, PAGE_EXECUTE_READWRITE)
 
-    echo &"manually allocated {caveSize} bytes at {toHex(cast[uint](newRegion))}"
+    echo &"[:] Allocated trampoline memory at {toHex(newRegion)}"
 
     return cast[ptr byte](newRegion)
 
