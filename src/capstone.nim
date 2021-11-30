@@ -1,33 +1,35 @@
 import os
 
 import capstone/x86
-import nimterop/[build, cimport]
+# import nimterop/[build, cimport]
 
-static:
-    let currentDir = currentSourcePath().splitPath().head
+# static:
+#     let currentDir = currentSourcePath().splitPath().head
+# 
+#     let capstoneDir = currentDir / "/capstone/private/"
+#     let cmakeDefs = @[
+#         "CAPSTONE_ARCHITECTURE_DEFAULT=OFF",
+#         "CAPSTONE_X86_SUPPORT=1",
+#         # "CAPSTONE_BUILD_STATIC=1"
+#     ]
+#     let cmakeFlags = flagBuild("-D$#", cmakeDefs) & " .."
+#     let configTarget = "Release"
+# 
+#     cmake(
+#         capstoneDir / "build", 
+#         "capstone.sln", 
+#         cmakeFlags
+#     )
+# 
+#     cmake(
+#         capstoneDir / "build", 
+#         configTarget / "capstone.dll", 
+#         "--build . --config " & configTarget
+#     )
+# 
+#     cpFile(capstoneDir / "build" / configTarget / "capstone.dll", currentDir / "../bin/capstone.dll")
 
-    let capstoneDir = currentDir / "/capstone/private/"
-    let cmakeDefs = @[
-        "CAPSTONE_ARCHITECTURE_DEFAULT=OFF",
-        "CAPSTONE_X86_SUPPORT=1",
-        "CAPSTONE_BUILD_STATIC=1"
-    ]
-    let cmakeFlags = flagBuild("-D$#", cmakeDefs) & " .."
-    let configTarget = "Release"
-
-    cmake(
-        capstoneDir / "build", 
-        "capstone.sln", 
-        cmakeFlags
-    )
-
-    cmake(
-        capstoneDir / "build", 
-        configTarget / "capstone.dll", 
-        "--build . --config " & configTarget
-    )
-
-    cpFile(capstoneDir / "build" / configTarget / "capstone.dll", currentDir / "../bin/capstone.dll")
+# {.link:"../bin/capstone.lib".}
 
 const
     CsMnemonicSize = 32
@@ -99,7 +101,7 @@ const
     AcRead*              = CsAcType(1 shl 0)
     AcWrite*             = CsAcType(1 shl 1)
 
-type CsGroupType* = int
+type CsGroupType* = uint8
 const
     GroupInvalid*        = CsGroupType(0)
     GroupJump*           = CsGroupType(1)
@@ -129,21 +131,21 @@ const
     ErrX86Masm*          = CsErr(14)
 
 type CsDetailArchInfo* {.union.} = object
-    x86: cs_x86
+    x86: CsX86
 
 type CsDetail* = object
-    regsRead: array[16, uint16]
-    regsReadCount: uint8
+    regsRead*: array[16, uint16]
+    regsReadCount*: uint8
 
-    regsWrite: array[20, uint16]
-    regsWriteCount: uint8
+    regsWrite*: array[20, uint16]
+    regsWriteCount*: uint8
 
-    groups: array[8, uint8]
-    groupsCount: uint8
+    groups*: array[8, CsGroupType]
+    groupsCount*: uint8
 
-    x86: cs_x86
+    x86*: CsX86
 
-type CsInsn* = object
+type CsInsn* {.bycopy.} = object
     id*: uint
 
     address*: uint64
