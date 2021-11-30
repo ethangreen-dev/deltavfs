@@ -5,6 +5,9 @@ import typetraits
 import assembly
 import hookutils
 
+import ../capstone
+import ../capstone/x86
+
 import distorm3
 import ptr_math
 
@@ -41,8 +44,18 @@ proc findCave*(targetAddr: ptr byte, caveSize: int): ptr byte =
     # Search for consecutive null bytes within a given delta distance of the target.
     var searchRegion = cast[ptr UncheckedArray[byte]](textSection)
 
+    # Determine the starting and stopping addresses for the search.
+    let start = if cast[int](targetAddr) - high(int32) < 0: 0 else: cast[int](targetAddr) - high(int32)
+    let stop = if cast[int](targetAddr) + high(int32) > int(textSize): int(textSize) else: cast[int](targetAddr) + high(int32)
+
+    echo cast[int](targetAddr) - high(int32)
+    echo cast[int](targetAddr) + high(int32)
+    echo &"search region: {toHex(start)} to {toHex(stop)}"
+
     var consecutive = 0
     for i in 0..textSize: 
+
+        # If not a null byte, reset the search.
         if searchRegion[i] != 0x00:
             consecutive = 0
 
@@ -62,9 +75,60 @@ proc findCave*(targetAddr: ptr byte, caveSize: int): ptr byte =
 proc updateOffsets*(buffer: var openArray[byte], origOffset: int, newOffset: int) = 
     echo toHex(buffer)
 
+    var handle: Csh
+
+    var instrs: CsInsn = CsInsn()
+    var instrsPtr = addr(instrs)
+
+    assert csOpen(ArchX86, Mode64, addr handle) == ErrOk
+    csOption(handle, OptDetail, OptOn)
+
+    let instrCount =  csDisasm(handle, addr buffer[0], uint(len(buffer)), uint64(0), 15'u, cast[ptr ptr CsInsn](addr instrsPtr))
+    assert instrCount != 0
+
+    # Iterate through each disassembled instruction.
+    for i in 0..<int(instrCount):
+        var instr = (instrsPtr + i)[]
+
+        # Iterate through each operand in the instruction.
+        for j in 0..<8:
+            let memBase = instr.detail.x86.operands[j].anoX86297.mem
+
+            # If the base of the operand is not RIP, skip it.
+            if memBase.base != X86_REG_RIP:
+                continue
+
+            # If the displacement is 0, skip.
+            if memBase.disp == 0:
+                continue
+
+            echo repr(instr.detail.x86.encoding)
+            echo repr(memBase.base), " ", toHex(memBase.disp)
+
+        # Check if the current instruction is relative.
+        if instr.detail.x86.disp == 0:
+            continue
+
+        # Find the in-address offset and size of the displacement.
+        let dispOffset = int(instr.detail.x86.encoding.dispOffset + instr.address)
+        let dispSize = instr.detail.x86.encoding.dispSize
+        let disp = cast[ptr int32](addr(buffer[dispOffset]))[]
+
+        let offsetDelta = int32(newOffset - origOffset)
+
+        assert dispSize == uint8(sizeof(int32))
+
+        echo toHex(newOffset)
+        echo toHex(origOffset)
+        echo toHex(offsetDelta)
+
+        # echo toHex(buffer[int(dispOffset) .. int(dispOffset + dispSize - 1)])
+        echo toHex(disp)
+        echo toHex(instr.address), " ", cstring(addr(instr.mnemonic)), " ", cstring(addr(instr.opStr))
+
+        echo ""
+
     let decoded = decodeBuffer(buffer)
-    # for instr in decoded:
-    #     echo $instr
 
     echo "OPJADPOKW"
 
