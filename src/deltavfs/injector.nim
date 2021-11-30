@@ -106,27 +106,6 @@ proc remoteLoadLib(procHandle: HANDLE, moduleName: string): int =
     VirtualFree(resultAddr, 0, MEM_RELEASE)
     VirtualFree(shellcodeAddr, 0, MEM_RELEASE)
 
-    # var moduleHandles: array[1024, HMODULE]
-    # var sizeOfHandles: DWORD
-
-    # doAssert EnumProcessModules(procHandle, addr moduleHandles[0], 1024, addr(sizeOfHandles)) != 0
-
-    # let moduleCount = int(int(sizeOfHandles) / sizeof(HMODULE))
-
-    # for i in 0..<moduleCount:
-    #     let parsedModName = cast[cstring](create(char, MAX_PATH + 1))
-    #     doAssert GetModuleBaseNameA(procHandle, moduleHandles[i], parsedModName, MAX_PATH) != 0
-
-    #     if parsedModName != moduleName:
-    #         continue
-
-    #     let test = GetProcAddress(moduleHandles[i], parsedModName)
-
-    #     echo $moduleName
-    #     echo toHex(cast[int](test))
-
-    # echo "Hello world!"
-
 proc getLibFuncOffset(moduleName: string, funcName: string): int =
     var cModuleName = $moduleName
     var cFuncName = &funcName
