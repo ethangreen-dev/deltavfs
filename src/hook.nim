@@ -31,7 +31,7 @@ proc makeHook*[T: proc, U: proc](target: T, destination: U): T =
     # let destJmp = makeJmp(destAddr)
 
     # Determine the number of bytes to steal from the target.
-    let jmpToDestSize = toBoundedSize(targetAddr, JmpSize + sizeof(int))
+    let jmpToDestSize = toBoundedSize(targetAddr, JmpSize)
     echo &"{jmpToDestSize} bytes will be removed."
 
     # Create the trampoline shellcode -- this will return execution from the cave back to the target.
@@ -44,8 +44,6 @@ proc makeHook*[T: proc, U: proc](target: T, destination: U): T =
     let caveSize = jmpToDestSize + JmpSize
     let caveAddr = findCave(targetAddr, caveSize)
 
-    echo "found cave at ", repr(caveAddr)
-
     # # Steal bytes from the target function and place into temporary buffer.
     var stolenBytes = newSeq[byte](jmpToDestSize)
     copyMem(addr stolenBytes[0], target, jmpToDestSize)
@@ -53,7 +51,7 @@ proc makeHook*[T: proc, U: proc](target: T, destination: U): T =
     echo &"stole {jmpToDestSize} bytes and placed into buffer at {toHex(cast[int](addr stolenBytes[0]))}"
 
     # Patch RIP-relative branch instructions to reflect new memory offset.
-    # updateOffsets(stolenBytes, cast[int](targetAddr), cast[int](caveAddr))
+    updateOffsets(stolenBytes, cast[int](targetAddr), cast[int](caveAddr))
 
     # Enable READ/WRITE access to the code cave.
     var old: DWORD
@@ -69,7 +67,11 @@ proc makeHook*[T: proc, U: proc](target: T, destination: U): T =
     VirtualProtect(targetAddr, jmpToDestSize, PAGE_EXECUTE_READWRITE, addr(old))
 
     # Write destination jmp and caveAddr to start of target function.
-    iterCopyMem(targetAddr, makeJmp(destAddr) & toByteSeq(cast[int](caveAddr)))
+    iterCopyMem(targetAddr, makeJmp(destAddr))
+
+    # Copy the address of the trampoline function to the NOP opcodes preceding the target.
+    VirtualProtect(destAddr - sizeof(int), sizeof(int), PAGE_EXECUTE_READWRITE, addr(old))
+    iterCopyMem(destAddr - sizeof(int), toByteSeq(cast[int](caveAddr)))
 
     # Steal bytes at target and place into temporary buffer.
     # var stolenBytes = newSeq[byte](destJmpSize)
