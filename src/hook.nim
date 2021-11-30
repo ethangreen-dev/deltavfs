@@ -14,6 +14,9 @@ from winim/core import
     LPVOID,
     PAGE_EXECUTE_READWRITE
 
+proc testMe*(testVar: int) =
+    echo "You sent me a ", testVar, " !"
+
 proc makeHook*[T: proc, U: proc](target: T, destination: U): T =
     var targetAddr = cast[ptr byte](target)
     var destAddr = cast[ptr byte](destination)
@@ -43,12 +46,14 @@ proc makeHook*[T: proc, U: proc](target: T, destination: U): T =
 
     echo "found cave at ", repr(caveAddr)
 
-    # Steal bytes from the target function and place into temporary buffer.
+    # # Steal bytes from the target function and place into temporary buffer.
     var stolenBytes = newSeq[byte](jmpToDestSize)
     copyMem(addr stolenBytes[0], target, jmpToDestSize)
 
+    echo &"stole {jmpToDestSize} bytes and placed into buffer at {toHex(cast[int](addr stolenBytes[0]))}"
+
     # Patch RIP-relative branch instructions to reflect new memory offset.
-    updateOffsets(stolenBytes, cast[int](targetAddr), cast[int](caveAddr))
+    # updateOffsets(stolenBytes, cast[int](targetAddr), cast[int](caveAddr))
 
     # Enable READ/WRITE access to the code cave.
     var old: DWORD
