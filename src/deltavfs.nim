@@ -12,7 +12,7 @@ import ptr_math
 import winim/lean
 
 proc hookMessageBox(hWnd: HWND, lpText: LPCTSTR, lpCaption: LPCSTR, uType: UINT): int = 
-    echo "I GOCHYA BITCH"
+    echo "HOOKED!"
 
     # Call the trampoline function.
     # let trampoline = getTrampoline(MessageBox)
@@ -41,7 +41,7 @@ proc main() =
     # let test = original[](0, "Hello world!", "Donkers", 0)
     # MessageBox(0, "Hello world!", "Donkers", 0)
 
-    injectDll("notepad.exe")
+    injectDll("files.exe")
 
 when isMainModule:
     main()
