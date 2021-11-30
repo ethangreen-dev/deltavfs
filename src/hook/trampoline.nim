@@ -11,17 +11,26 @@ import ../capstone/x86
 import distorm3
 import ptr_math
 
-from winim/core import
-    VirtualAlloc,
-    GetModuleHandle,
-    NULL,
-    MEM_COMMIT,
-    IMAGE_DOS_HEADER,
-    IMAGE_NT_HEADERS,
-    IMAGE_SECTION_HEADER,
-    PAGE_EXECUTE_READWRITE
+import winim/core
+
+proc closeAlloc(targetAddr: ptr byte, size: int): int =
+    let newRegion = VirtualAlloc(
+        cast[LPVOID](targetAddr - int(high(int32) / 2)),
+        SIZE_T(size),
+        MEM_COMMIT or MEM_RESERVE,
+        PAGE_EXECUTE_READWRITE
+    )
+
+    cast[int](newRegion)
 
 proc findCave*(targetAddr: ptr byte, caveSize: int): ptr byte = 
+    let newThingie = closeAlloc(targetAddr, caveSize)
+
+    echo &"allocated new region at {toHex(newThingie)}"
+    echo &"{cast[int](targetAddr) - newThingie} bytes away from the target address."
+
+    return cast[ptr byte](newThingie)
+
     # Search for the start and end of the .text section.
     let imageBase = cast[ptr byte](GetModuleHandle(NULL))
     let ntHeader = cast[ptr IMAGE_NT_HEADERS](imageBase + cast[ptr IMAGE_DOS_HEADER](imageBase).e_lfanew)
@@ -45,26 +54,53 @@ proc findCave*(targetAddr: ptr byte, caveSize: int): ptr byte =
     var searchRegion = cast[ptr UncheckedArray[byte]](textSection)
 
     # Determine the starting and stopping addresses for the search.
-    let start = if cast[int](targetAddr) - high(int32) < 0: 0 else: cast[int](targetAddr) - high(int32)
-    let stop = if cast[int](targetAddr) + high(int32) > int(textSize): int(textSize) else: cast[int](targetAddr) + high(int32)
+    # let start = if cast[int](targetAddr) - high(int32) < 0: 0 else: cast[int](targetAddr) - high(int32)
+    # let stop = if cast[int](targetAddr) + high(int32) > int(textSize): int(textSize) else: cast[int](targetAddr) + high(int32)
 
-    echo cast[int](targetAddr) - high(int32)
-    echo cast[int](targetAddr) + high(int32)
+    let offset = int(high(int16) * 2)
+    let start = cast[int](targetAddr) - offset
+    let stop = cast[int](targetAddr) + offset
+ 
+    echo cast[int](targetAddr) - offset
+    echo cast[int](targetAddr) + offset
     echo &"search region: {toHex(start)} to {toHex(stop)}"
 
     var consecutive = 0
-    for i in 0..textSize: 
+    for i in start..stop:
+        # echo toHex(i)
+
+        # while true:
+        #     discard "d"
+
+        let currentVal = cast[ptr byte](i)[]
 
         # If not a null byte, reset the search.
-        if searchRegion[i] != 0x00:
+        if currentVal != 0x00:
             consecutive = 0
 
-        elif searchRegion[i] == 0x00:
+        elif currentVal == 0x00:
             consecutive += 1
 
         if consecutive > caveSize:
-            return addr(searchRegion[i]) - consecutive + 1
+            return cast[ptr byte](i - consecutive + 1)
 
+    # var consecutive = 0
+    # for i in 0..textSize: 
+    #     let currentAddr = cast[int](textSection) + i
+    #     if abs(cast[int](targetAddr) - currentAddr) >= high(int32):
+    #         consecutive = 0
+    #         continue
+# 
+    #     # If not a null byte, reset the search.
+    #     if searchRegion[i] != 0x00:
+    #         consecutive = 0
+# 
+    #     elif searchRegion[i] == 0x00:
+    #         consecutive += 1
+# 
+    #     if consecutive > caveSize:
+    #         return addr(searchRegion[i]) - consecutive + 1
+# 
     # In the event no code caves can be found, allocate memory.
     let newRegion = VirtualAlloc(NULL, caveSize, MEM_COMMIT, PAGE_EXECUTE_READWRITE)
 
@@ -114,7 +150,9 @@ proc updateOffsets*(buffer: var openArray[byte], origOffset: int, newOffset: int
         let dispSize = instr.detail.x86.encoding.dispSize
         let disp = cast[ptr int32](addr(buffer[dispOffset]))[]
 
-        let offsetDelta = int32(newOffset - origOffset)
+        echo &"instr has displacement {toHex(disp)}"
+
+        let offsetDelta = int32(newOffset - origOffset) + int32(dispOffset)
 
         assert dispSize == uint8(sizeof(int32))
 
@@ -126,7 +164,17 @@ proc updateOffsets*(buffer: var openArray[byte], origOffset: int, newOffset: int
         echo toHex(disp)
         echo toHex(instr.address), " ", cstring(addr(instr.mnemonic)), " ", cstring(addr(instr.opStr))
 
+        var newDispl = int32((origOffset + disp) - newOffset)
+
+        # var newOffset = offsetDelta + int32(instr.size)
+
+        copyMem(addr buffer[int(dispOffset)], cast[ptr byte](addr newDispl), sizeof(int32))
+
+        echo &"new displacement: {toHex(newDispl)}"
+
         echo ""
+
+    return
 
     let decoded = decodeBuffer(buffer)
 
@@ -167,4 +215,6 @@ proc getTrampoline*[T: proc](target: T): ptr T =
     # The address of the trampoline function is stored after the jump shellcode at the target function.
     # Stored as an int64, grab the value and cast it back to T.
 
-    cast[ptr type(T)](cast[uint](target) + JmpSize)
+    # cast[ptr type(T)](cast[uint](target) + JmpSize)
+
+    cast[ptr type(T)](cast[int](target - sizeof(int)))
