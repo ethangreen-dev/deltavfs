@@ -14,9 +14,6 @@ from winim/core import
     LPVOID,
     PAGE_EXECUTE_READWRITE
 
-proc testMe*(testVar: int) =
-    echo "You sent me a ", testVar, " !"
-
 proc makeHook*[T: proc, U: proc](target: T, destination: U): T =
     var targetAddr = cast[ptr byte](target)
     var destAddr = cast[ptr byte](destination)
