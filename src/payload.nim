@@ -7,8 +7,10 @@ import hook/trampoline
 import winim/lean
 import winim/winstr
 
+const binDir = currentSourcePath().splitPath().head / "../bin"
+
 proc hookMessageBoxA(hWnd: HWND, lpText: LPCTSTR, lpCaption: LPCSTR, uType: UINT): int = 
-    return getTrampoline(hookMessageBoxA)[](0, "HOOKED!", "THOU HATH BEEN HOOKED", 0)
+    return getTrampoline(hookMessageBoxA)[](0, "HOOKED!", "HOOKED!", 0)
 
 proc hookCreateFileW(
     lpFileName: LPCWSTR,
@@ -20,7 +22,7 @@ proc hookCreateFileW(
     hTemplateFile: HANDLE 
     ): HANDLE = 
 
-    let newPath = absolutePath("C:/Users/green/Dev/nim/deltavfs/bin/test.txt")
+    let newPath = absolutePath(binDir / "test.txt")
 
     echo &"[H] CreateFileW with lpFileName: '{$lpFileName}'"
     echo &"    - Set lpFileName -> '{newPath}'"

@@ -1,47 +1,7 @@
-import strutils
-import typetraits
-
-import hook
-import hook/trampoline
-
-import capstone
-
 import deltavfs/injector
 
-import ptr_math
-import winim/lean
-
-proc hookMessageBox(hWnd: HWND, lpText: LPCTSTR, lpCaption: LPCSTR, uType: UINT): int = 
-    echo "HOOKED!"
-
-    # Call the trampoline function.
-    # let trampoline = getTrampoline(MessageBox)
-    let trampoline = cast[ptr type(MessageBox)](cast[uint](MessageBox) + 14)
-
-    echo toHex(cast[uint](trampoline))
-
-    discard readLine(stdin)
-
-    echo OptOn
-
-    return trampoline[](HWND(0), "Hooked!", "Hooked by deltavfs", UINT(0))
-
 proc main() =
-    # let original = makeHook(MessageBox, hookMessageBox)
-    # discard readLine(stdin)
-
-    # MessageBox(0, "Hello", "HA", 0)
-
-    # # discard original(0, "Hello world!", "Donkie Kang", 0)
-
-    # MessageBox(0, "Hello", "HA", 0)
-
-    # discard original(0, "Trying this again...", "Does this actually work?", 0)
-
-    # let test = original[](0, "Hello world!", "Donkers", 0)
-    # MessageBox(0, "Hello world!", "Donkers", 0)
-
-    injectDll("files.exe")
+    injectDll("notepad.exe")
 
 when isMainModule:
     main()

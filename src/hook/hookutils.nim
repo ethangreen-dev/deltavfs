@@ -18,16 +18,4 @@ proc iterCopyMem*(target: ptr byte, buffer: openArray[byte]) =
 proc toByteSeq*(value: int): seq[byte] = 
     @cast[array[8, byte]](value)
 
-# proc iterCopyMem*(target: ptr byte, buffer: ptr byte, number: int) =
-#     var temp: seq[byte] = @[]
-# 
-#     for offset in 0..number:
-#         add(temp, buffer[offset])
-# 
-#         discard readLine(stdin)
-# 
-#         echo toHex(cast[uint](target + offset)), " set to ", toHex((buffer + offset)[])
-#         (target + offset)[] = (buffer + offset)[]
-# 
-#     echo toHex(temp)
 

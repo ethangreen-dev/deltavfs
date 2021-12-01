@@ -15,6 +15,9 @@ from winim/inc/psapi import
 
 proc remoteLoadLib(procHandle: HANDLE, moduleName: string): int = 
     var cModuleName = $moduleName
+
+    echo GetLastError()
+
     let moduleNameAddr = VirtualAllocEx(
         procHandle,
         NULL,
@@ -22,7 +25,11 @@ proc remoteLoadLib(procHandle: HANDLE, moduleName: string): int =
         MEM_COMMIT,
         PAGE_EXECUTE_READWRITE
     )
+    echo GetLastError()
+
     WriteProcessMemory(procHandle, moduleNameAddr, LPCVOID(addr cModuleName[0]), SIZE_T(len(moduleName) + 1), NULL)
+
+    echo GetLastError()
 
     echo &"Wrote to {toHex(cast[int](moduleNameAddr))}"
 
@@ -35,6 +42,8 @@ proc remoteLoadLib(procHandle: HANDLE, moduleName: string): int =
         PAGE_READWRITE
     )
 
+    echo GetLastError()
+
     let moduleNameShc = swapBytes(cast[uint64](moduleNameAddr))
     let loadLibraryShc = swapBytes(cast[uint64](loadLibraryAddr))
     let resultShc = swapBytes(cast[uint64](resultAddr))
@@ -42,7 +51,6 @@ proc remoteLoadLib(procHandle: HANDLE, moduleName: string): int =
     echo &"LoadLibraryA: {toHex(cast[int](loadLibraryAddr))}"
     echo &"resultAddr  : {toHex(cast[int](resultAddr))}"
 
-    # Not sure how needed this is -- does nothing based on experimentation.  0x66 0x83 0xE4 0xC0                  ; and sp, 0xFFC0
     let payload = &"""
     0x53                                 ; push rbx
     0x48 0x89 0xE3                       ; mov rbp, rsp
@@ -125,36 +133,21 @@ proc getLibFuncOffset(moduleName: string, funcName: string): int =
 
     localDelta
 
-# proc remoteLoadLib(procHandle: HANDLE, dllPath: string, suspended: bool = false): HANDLE = 
-#     var widePath = newWideCSTring(dllPath)
-# 
-#     let remotePath = VirtualAllocEx(
-#         procHandle,
-#         NULL,
-#         cast[SIZE_T](len widePath) * 2,
-#         MEM_COMMIT,
-#         PAGE_EXECUTE_READWRITE
-#     )
-# 
-#     WriteProcessMemory(
-#         procHandle,
-#         remotePath,
-#         cast[LPCVOID](addr(widePath[0])),
-#         cast[SIZE_T](len widePath) * 2,
-#         NULL
-#     )
-# 
-#     echo &"wrote dll path to {toHex(cast[int](remotePath))}"
-# 
-#     CreateRemoteThread(
-#         procHandle,
-#         NULL,
-#         0,
-#         cast[LPTHREAD_START_ROUTINE](cast[uint](LoadLibraryW)),
-#         remotePath,
-#         if suspended: 4 else: 0,
-#         NULL
-#     )
+proc escalatePriv(procHandle: HANDLE) =
+    var procToken: HANDLE
+    var uid: LUID
+
+    var tokenPrivs = create(TOKEN_PRIVILEGES)
+
+    OpenProcessToken(procHandle, TOKEN_ADJUST_PRIVILEGES or TOKEN_QUERY, addr procToken)
+    LookupPrivilegeValue(NULL, SE_DEBUG_NAME, addr uid)
+
+    tokenPrivs.PrivilegeCount = 1
+    tokenPrivs.Privileges[0].Luid = uid
+    tokenPrivs.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED
+
+    AdjustTokenPrivileges(procToken, FALSE, tokenPrivs, DWORD(sizeof(tokenPrivs)), NULL, NULL)
+    CloseHandle(procToken)
 
 proc injectDll*(into: string) = 
     let binDir = currentSourcePath().splitPath().head / "../../bin"
@@ -166,7 +159,7 @@ proc injectDll*(into: string) =
     echo payloadDll
 
     # Start the target process in a suspended state.
-    let target = startProcess(into)
+    let target = startProcess(into, options={poEvalCommand})
     suspend(target)
 
     let targetHandle = OpenProcess(
@@ -175,7 +168,13 @@ proc injectDll*(into: string) =
         DWORD(target.processId)
     )
 
+    # Escalate SE_DEBUG privileges. Only seems to be useful when running
+    # within an administrator process.
+    # escalatePriv(targetHandle)
+
     resume(target)
+
+    discard readLine(stdin)
 
     discard remoteLoadLib(targetHandle, capstoneDll)
     let payloadBase = remoteLoadLib(targetHandle, payloadDll)
@@ -201,7 +200,7 @@ proc injectDll*(into: string) =
         NULL
     )
 
-    echo &"spawned mainThread in process {target.processId} with execution at {toHex(cast[int](mainThread))}"
+    # echo &"spawned mainThread in process {target.processId} with execution at {toHex(cast[int](mainThread))}"
 
     # Allocate and copy dllPath into the target process.
     # let remoteDllPath = VirtualAllocEx(

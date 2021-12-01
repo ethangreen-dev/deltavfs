@@ -29,8 +29,6 @@ import capstone/x86
 # 
 #     cpFile(capstoneDir / "build" / configTarget / "capstone.dll", currentDir / "../bin/capstone.dll")
 
-# {.link:"../bin/capstone.lib".}
-
 const
     CsMnemonicSize = 32
 
