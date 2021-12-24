@@ -1,7 +1,7 @@
 import deltavfs/injector
 
 proc main() =
-    injectDll("notepad.exe")
+  injectDll("notepad.exe")
 
 when isMainModule:
-    main()
+  main()
