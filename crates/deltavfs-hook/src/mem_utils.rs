@@ -1,6 +1,6 @@
 use std::{ffi::c_void, ptr};
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 
 use windows::Win32::System::Memory::{VirtualProtect, PAGE_EXECUTE_READWRITE, PAGE_PROTECTION_FLAGS};
 

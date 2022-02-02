@@ -2,7 +2,6 @@ use crate::asm_analysis;
 use crate::mem_utils::WriteGuard;
 
 use std::mem;
-use std::ptr;
 use std::ffi::c_void;
 
 use hex;
