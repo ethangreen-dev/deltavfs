@@ -1,3 +1,7 @@
+mod hook;
+mod mem_utils;
+mod asm_analysis;
+
 use windows::Win32::{System::Console::AllocConsole, Foundation::BOOL};
 
 #[no_mangle]
