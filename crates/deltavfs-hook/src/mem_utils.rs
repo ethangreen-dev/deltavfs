@@ -28,8 +28,9 @@ impl WriteGuard {
         }
     }
 
-    pub unsafe fn write(&self, buffer: &[u8]) -> Result<()> {
-        ptr::write(self.target as _, buffer);
+    pub unsafe fn write(&self, buffer: Vec<u8>) -> Result<()> {
+        ptr::copy(buffer.as_ptr(), self.target as _, buffer.len());
+        // ptr::write(self.target as _, buffer);
 
         Ok(())
     }
