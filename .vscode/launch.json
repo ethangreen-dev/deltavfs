@@ -1,0 +1,82 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'deltavfs-driver'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=deltavfs-driver",
+                    "--package=deltavfs-driver"
+                ],
+                "filter": {
+                    "name": "deltavfs-driver",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'deltavfs-driver'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=deltavfs-driver",
+                    "--package=deltavfs-driver"
+                ],
+                "filter": {
+                    "name": "deltavfs-driver",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'deltavfs-inject'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=deltavfs-inject",
+                    "--package=deltavfs-inject"
+                ],
+                "filter": {
+                    "name": "deltavfs-inject",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'deltavfs-inject'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=deltavfs-inject",
+                    "--package=deltavfs-inject"
+                ],
+                "filter": {
+                    "name": "deltavfs-inject",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}
