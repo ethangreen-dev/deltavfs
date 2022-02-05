@@ -1,13 +1,18 @@
 use std::{ffi::c_void, ptr};
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 
-use windows::Win32::System::Memory::{VirtualProtect, PAGE_EXECUTE_READWRITE, PAGE_PROTECTION_FLAGS};
+use windows::Win32::{
+    System::Memory::{
+        VirtualAlloc, VirtualProtect, MEM_COMMIT, MEM_RESERVE, PAGE_EXECUTE_READWRITE,
+        PAGE_PROTECTION_FLAGS,
+    },
+};
 
 pub struct WriteGuard {
     target: *const c_void,
     desired_size: usize,
-    old_prot: PAGE_PROTECTION_FLAGS
+    old_prot: PAGE_PROTECTION_FLAGS,
 }
 
 impl WriteGuard {
@@ -15,16 +20,16 @@ impl WriteGuard {
         // Grant write permissions to the region of memory.
         let mut old_prot = PAGE_PROTECTION_FLAGS::default();
         VirtualProtect(
-            target, 
-            desired_size, 
-            PAGE_EXECUTE_READWRITE, 
-            &mut old_prot as *mut _
+            target,
+            desired_size,
+            PAGE_EXECUTE_READWRITE,
+            &mut old_prot as *mut _,
         );
 
         WriteGuard {
             target,
             desired_size,
-            old_prot
+            old_prot,
         }
     }
 
@@ -40,11 +45,27 @@ impl Drop for WriteGuard {
     fn drop(&mut self) {
         unsafe {
             VirtualProtect(
-                self.target, 
-                self.desired_size, 
-                self.old_prot, 
-                ptr::null_mut()
+                self.target,
+                self.desired_size,
+                self.old_prot,
+                ptr::null_mut(),
             );
         }
+    }
+}
+
+pub unsafe fn get_exec_cave(desired_size: usize) -> Result<*const c_void> {
+    // Find or allocate an executable region in memory with the specified size.
+    match VirtualAlloc(
+        ptr::null_mut(),
+        desired_size,
+        MEM_COMMIT | MEM_RESERVE,
+        PAGE_EXECUTE_READWRITE,
+    ) as usize
+    {
+        0 => Err(anyhow!(
+            "VirtualAlloc() failed while allocating memory for code cave."
+        )),
+        x => Ok(x as _),
     }
 }

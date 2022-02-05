@@ -1,4 +1,5 @@
 use crate::asm_analysis;
+use crate::mem_utils;
 use crate::mem_utils::WriteGuard;
 
 use std::mem;
@@ -22,7 +23,7 @@ pub unsafe fn install_hook(target_ptr: *const c_void, dest_ptr: *const c_void) -
     // Find a suitable location for the trampoline, which will both store the stolen bytes and redirect
     // execution back to the target + JMP size offset.
     let trampoline_size = steal_size + JMP_SIZE64;
-    let trampoline_ptr = asm_analysis::get_exec_cave(trampoline_size)?;
+    let trampoline_ptr = mem_utils::get_exec_cave(trampoline_size)?;
 
     println!("created executable cave at {:x?}.", trampoline_ptr);
 
