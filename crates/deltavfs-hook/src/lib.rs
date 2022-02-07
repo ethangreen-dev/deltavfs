@@ -2,6 +2,11 @@ mod asm_analysis;
 mod hook;
 mod mem_utils;
 
+use macros::hook;
+use shared::pe;
+
+use once_cell::sync::OnceCell;
+
 use widestring::{WideCString};
 use windows::Win32::{
     Foundation::{BOOL, HANDLE, PWSTR},
@@ -13,6 +18,8 @@ use windows::Win32::{
     System::Console::AllocConsole,
 };
 
+static TEST_RECALL: OnceCell<usize> = OnceCell::new();
+
 #[no_mangle]
 unsafe extern "stdcall" fn hook_init() {
     match AllocConsole() {
@@ -22,9 +29,15 @@ unsafe extern "stdcall" fn hook_init() {
 
     println!("Hello from the DLL!");
 
-    hook::install_hook(0x00007FFDE8AA1F10 as usize as _, test as _).unwrap();
+    let target_addr = pe::get_func_addr("kernel32", "CreateFileW").unwrap();
+    let recall = hook::install_hook(target_addr, test as _).unwrap();
+
+    println!("Got recall value of {:?}", recall);
+
+    TEST_RECALL.set(recall as _);
 }
 
+#[hook]
 unsafe fn test(
     file_name: PWSTR,
     desired_access: FILE_ACCESS_FLAGS,
@@ -35,18 +48,15 @@ unsafe fn test(
     template_file: HANDLE,
 ) -> HANDLE {
     let thing = WideCString::from_ptr_str(file_name.0).to_string().unwrap();
-
     println!("{}", thing);
 
-    // CreateFileW(
-    //     file_name,
-    //     desired_access,
-    //     share_mode,
-    //     security_attributes,
-    //     creation_disposition,
-    //     flags_and_attributes,
-    //     template_file
-    // )
-
-    HANDLE(0)
+    recall(
+        file_name,
+        desired_access,
+        share_mode,
+        security_attributes,
+        creation_disposition,
+        flags_and_attributes,
+        template_file
+    )
 }
