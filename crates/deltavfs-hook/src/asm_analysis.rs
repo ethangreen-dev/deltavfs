@@ -1,7 +1,7 @@
 use std::slice;
 use std::ffi::c_void;
 
-use iced_x86::Decoder;
+use iced_x86::{Decoder, Encoder};
 use anyhow::{anyhow, Result};
 
 pub unsafe fn get_bounded_size(target_ptr: *const c_void, desired_size: usize) -> Result<usize> {
@@ -23,6 +23,32 @@ pub unsafe fn get_bounded_size(target_ptr: *const c_void, desired_size: usize) -
     Err(anyhow!("Failed to determine instruction boundaries."))
 }
 
-pub fn adjust_offsets(instr_buffer: Vec<u8>) -> Result<()> {
-    Ok(())
+pub fn adjust_offsets(instr_buffer: Vec<u8>, old_base: usize, new_base: usize) -> Result<Vec<u8>> {
+    // Determine the difference between the new and old code bases and create the instr decoder.
+    let base_delta = new_base as i64 - old_base as i64;
+
+    let mut encoder = Encoder::new(64);
+    let mut decoder = Decoder::new(64, &instr_buffer, 0);
+    decoder.set_ip(old_base as _);
+
+    while decoder.can_decode() {
+        let mut instr = decoder.decode();
+
+        if !instr.is_ip_rel_memory_operand() {
+            continue;
+        }
+
+        // Get the RIP offset of the instruction and determine the difference between its current
+        // target and the destination.
+        let offset = instr.ip_rel_memory_address();
+        let target = instr.ip() + offset;
+
+        // Set the new ip rel offset of the instruction.
+        let new_offset = (offset as i64 + base_delta) as usize;
+        instr.set_memory_displacement64(new_offset as _);
+
+        encoder.encode(&instr, (instr.ip() as i64 + base_delta) as _);
+    }
+
+    Ok(encoder.take_buffer())
 }
