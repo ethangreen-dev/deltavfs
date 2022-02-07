@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+shared = { version = "0.0.0", path = "../shared" }
+
 hex = "0.4"
 log = "0.4"
 env_logger = "0.9"
