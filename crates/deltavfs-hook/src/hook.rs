@@ -10,7 +10,7 @@ use anyhow::Result;
 
 const JMP_SIZE64: usize = 14;
 
-pub unsafe fn install_hook(target_ptr: *const c_void, dest_ptr: *const c_void) -> Result<()> {
+pub unsafe fn install_hook(target_ptr: *const c_void, dest_ptr: *const c_void) -> Result<(*const c_void)> {
     println!("target_ptr: {:x?}", target_ptr);
     println!("dest:   {:x?}", dest_ptr);
 
@@ -58,7 +58,7 @@ pub unsafe fn install_hook(target_ptr: *const c_void, dest_ptr: *const c_void) -
 
     println!("jmp -> dest has been written to the target at {:x?}", target_ptr);
 
-    Ok(())
+    Ok(trampoline_ptr as _)
 }
 
 fn make_jmp(dest_ptr: *const c_void) -> Result<Vec<u8>> {
