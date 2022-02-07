@@ -1,3 +1,5 @@
+use shared::pe;
+
 use std::ffi::c_void;
 use std::mem::size_of;
 use std::{process::Command, ptr};
@@ -11,7 +13,7 @@ use windows::Win32::Foundation::{HANDLE, HINSTANCE, CloseHandle, GetLastError};
 use windows::Win32::System::Diagnostics::Debug::{WriteProcessMemory, ReadProcessMemory};
 use windows::Win32::System::LibraryLoader::{DONT_RESOLVE_DLL_REFERENCES, LoadLibraryExA, GetProcAddress};
 use windows::Win32::System::Memory::{MEM_COMMIT, PAGE_EXECUTE_READWRITE, MEM_FREE, VirtualFree};
-use windows::Win32::System::Threading::{CreateRemoteThread, WaitForSingleObject};
+use windows::Win32::System::Threading::{CREATE_NEW_CONSOLE, CreateRemoteThread, WaitForSingleObject};
 use windows::Win32::System::{
     Threading::{OpenProcess, PROCESS_ALL_ACCESS}, 
     Memory::VirtualAllocEx
@@ -22,6 +24,7 @@ pub unsafe fn inject_into(exec_path: &str) -> Result<()> {
 
     // Spawn the process in a suspended state.
     let proc = Command::new(exec_path)
+        .creation_flags(CREATE_NEW_CONSOLE)
         .spawn()?;
 
     let proc_handle = OpenProcess(
@@ -87,8 +90,7 @@ unsafe fn remote_loadlib(proc_handle: HANDLE, library: &str) -> Result<usize> {
         ptr::null_mut()
     );
 
-    // Const address of LoadLibraryA. Replace.
-    let loadlib_ptr = 0x00007FFDE8A9F240 as *const c_void;
+    let loadlib_ptr = pe::get_func_addr("kernel32", "LoadLibraryA")?;
 
     // Create the payload string, embed relevant addresses, and convert to byte array.
     let payload_str = format!("      
@@ -170,9 +172,9 @@ unsafe fn remote_loadlib(proc_handle: HANDLE, library: &str) -> Result<usize> {
     println!("{:x?}", result_ptr);
 
     // Cleanup remote memory.
-    // VirtualFree(lib_path_ptr, 0, MEM_FREE);
-    // VirtualFree(result_ptr, 0, MEM_FREE);
-    // VirtualFree(shellcode_ptr, 0, MEM_FREE);
+    VirtualFree(lib_path_ptr, 0, MEM_FREE);
+    VirtualFree(result_ptr, 0, MEM_FREE);
+    VirtualFree(shellcode_ptr, 0, MEM_FREE);
 
     Ok(std::mem::transmute::<_, usize>(result))
 }
