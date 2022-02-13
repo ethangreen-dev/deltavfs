@@ -1,4 +1,4 @@
-mod asm_analysis;
+mod asm;
 mod hook;
 mod mem_utils;
 
@@ -34,7 +34,7 @@ unsafe extern "stdcall" fn hook_init() {
 
     println!("Got recall value of {:?}", recall);
 
-    TEST_RECALL.set(recall as _);
+    TEST_RECALL.set(recall as _).unwrap();
 }
 
 #[hook]
@@ -50,13 +50,15 @@ unsafe fn test(
     let thing = WideCString::from_ptr_str(file_name.0).to_string().unwrap();
     println!("{}", thing);
 
-    recall(
+    let handle = recall(
         file_name,
         desired_access,
         share_mode,
         security_attributes,
         creation_disposition,
         flags_and_attributes,
-        template_file
-    )
+        template_file,
+    );
+
+    handle
 }

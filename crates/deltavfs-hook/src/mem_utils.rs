@@ -3,10 +3,10 @@ use std::{ffi::c_void, ptr};
 use anyhow::{anyhow, Result};
 
 use windows::Win32::{
-    System::Memory::{
+    System::{Memory::{
         VirtualAlloc, VirtualProtect, MEM_COMMIT, MEM_RESERVE, PAGE_EXECUTE_READWRITE,
         PAGE_PROTECTION_FLAGS,
-    },
+    }, LibraryLoader::GetModuleHandleA},
 };
 
 pub struct WriteGuard {
@@ -54,7 +54,8 @@ impl Drop for WriteGuard {
     }
 }
 
-pub unsafe fn get_exec_cave(desired_size: usize) -> Result<*const c_void> {
+pub unsafe fn get_exec_cave(desired_size: usize, close_to: *const c_void) -> Result<*const c_void> {
+    // Determine the size of the module in memory.
     // Find or allocate an executable region in memory with the specified size.
     match VirtualAlloc(
         ptr::null_mut(),
