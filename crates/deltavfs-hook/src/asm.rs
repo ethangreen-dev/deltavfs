@@ -57,11 +57,15 @@ pub fn adjust_offsets(instr_buffer: Vec<u8>, old_base: usize, new_base: usize) -
         // JMP instructions may reference indirect addresses, which need to be dereferenced before 
         // the new jump can be created.
         if instr.is_jmp_near_indirect() {
-            let mut old_ip_buf: [u8; 8] = [0; 8];
+            // let mut old_ip_buf: [u8; 8] = [0; 8];
+
+            // let old_ip = unsafe {
+            //     ptr::copy(old_ip as *const u64 as *const u8, old_ip_buf.as_mut_ptr(), 6);
+            //     u64::from_le_bytes(old_ip_buf)
+            // };
 
             let old_ip = unsafe {
-                ptr::copy(old_ip as *const u64 as *const u8, old_ip_buf.as_mut_ptr(), 6);
-                u64::from_le_bytes(old_ip_buf)
+                *(old_ip as *const u64)
             };
 
             // Else, manually insert a jump to destination described by old_ip.
