@@ -1,38 +1,49 @@
 use shared::pe;
 
 use std::ffi::c_void;
+use std::io::{BufRead, BufReader};
 use std::mem::size_of;
-use std::process::Stdio;
-use std::{process::Command, ptr};
-use std::os::windows::process::CommandExt;
+use std::process::{Command, Stdio};
+use std::{ptr, thread};
 
+use anyhow::{anyhow, Result};
 use hex;
 use log::*;
-use anyhow::{anyhow, Result};
 
-use windows::Win32::Foundation::{HANDLE, HINSTANCE, CloseHandle, GetLastError};
-use windows::Win32::System::Diagnostics::Debug::{WriteProcessMemory, ReadProcessMemory};
-use windows::Win32::System::LibraryLoader::{DONT_RESOLVE_DLL_REFERENCES, LoadLibraryExA, GetProcAddress};
-use windows::Win32::System::Memory::{MEM_COMMIT, PAGE_EXECUTE_READWRITE, MEM_FREE, VirtualFree};
-use windows::Win32::System::Threading::{CREATE_NEW_CONSOLE, CreateRemoteThread, WaitForSingleObject, DETACHED_PROCESS};
+use windows::Win32::Foundation::{CloseHandle, GetLastError, HANDLE, HINSTANCE};
+use windows::Win32::System::Diagnostics::Debug::{ReadProcessMemory, WriteProcessMemory};
+use windows::Win32::System::LibraryLoader::{
+    GetProcAddress, LoadLibraryExA, DONT_RESOLVE_DLL_REFERENCES,
+};
+use windows::Win32::System::Memory::{VirtualFree, MEM_COMMIT, MEM_FREE, PAGE_EXECUTE_READWRITE};
+use windows::Win32::System::Threading::{CreateRemoteThread, WaitForSingleObject};
 use windows::Win32::System::{
-    Threading::{OpenProcess, PROCESS_ALL_ACCESS}, 
-    Memory::VirtualAllocEx
+    Memory::VirtualAllocEx,
+    Threading::{OpenProcess, PROCESS_ALL_ACCESS},
 };
 
 pub unsafe fn inject_into(exec_path: &str) -> Result<()> {
-
-    info!("Preparing to inject payload into executable at '{}'", exec_path);
+    info!(
+        "Preparing to inject payload into executable at '{}'",
+        exec_path
+    );
 
     // Spawn the process in a suspended state.
-    let proc = Command::new(exec_path)
-        .spawn()?;
+    let mut proc = Command::new(exec_path).stdout(Stdio::piped()).spawn()?;
 
-    let proc_handle = OpenProcess(
-        PROCESS_ALL_ACCESS,
-        false,
-        proc.id()
-    );
+    let stdout = proc
+        .stdout
+        .take()
+        .expect("Failed to open stdout of child process.");
+
+    // Open threaded reader to echo child stdout to parent.
+    thread::spawn(move || {
+        for line in BufReader::new(stdout).lines() {
+            println!("[~] {}", line.unwrap());
+        }
+    });
+
+    let proc_handle = OpenProcess(PROCESS_ALL_ACCESS, false, proc.id());
 
     let library = "C:\\Users\\green\\Dev\\rust\\deltavfs\\target\\debug\\deltavfs_hook.dll";
     let lib_base = remote_loadlib(proc_handle, library)?;
@@ -51,8 +62,10 @@ pub unsafe fn inject_into(exec_path: &str) -> Result<()> {
         std::mem::transmute(entry_point),
         ptr::null_mut(),
         0,
-        ptr::null_mut()
+        ptr::null_mut(),
     );
+
+    proc.wait()?;
 
     Ok(())
 }
@@ -64,12 +77,15 @@ unsafe fn remote_loadlib(proc_handle: HANDLE, library: &str) -> Result<usize> {
         ptr::null_mut(),
         library.len() + 1,
         MEM_COMMIT,
-        PAGE_EXECUTE_READWRITE
+        PAGE_EXECUTE_READWRITE,
     );
 
     println!("{:x?}", lib_path_ptr);
 
-    println!("Remote allocated {} bytes for library path.", library.len() + 1);
+    println!(
+        "Remote allocated {} bytes for library path.",
+        library.len() + 1
+    );
 
     // Allocate space in the remote process to store the result of our LoadLibraryA call.
     let result_ptr = VirtualAllocEx(
@@ -77,10 +93,13 @@ unsafe fn remote_loadlib(proc_handle: HANDLE, library: &str) -> Result<usize> {
         ptr::null_mut(),
         size_of::<HINSTANCE>(),
         MEM_COMMIT,
-        PAGE_EXECUTE_READWRITE
+        PAGE_EXECUTE_READWRITE,
     );
 
-    println!("Remote allocated {} bytes for LoadLibraryA result.", size_of::<HINSTANCE>());
+    println!(
+        "Remote allocated {} bytes for LoadLibraryA result.",
+        size_of::<HINSTANCE>()
+    );
 
     // Write the path of the library to memory.
     WriteProcessMemory(
@@ -88,13 +107,14 @@ unsafe fn remote_loadlib(proc_handle: HANDLE, library: &str) -> Result<usize> {
         lib_path_ptr,
         library.as_bytes().as_ptr() as _,
         library.len(),
-        ptr::null_mut()
+        ptr::null_mut(),
     );
 
     let loadlib_ptr = pe::get_func_addr("kernel32", "LoadLibraryA")?;
 
     // Create the payload string, embed relevant addresses, and convert to byte array.
-    let payload_str = format!("      
+    let payload_str = format!(
+        "      
         0x53
         0x48 0x89 0xE3
         0x48 0x83 0xEC 0x20
@@ -106,10 +126,14 @@ unsafe fn remote_loadlib(proc_handle: HANDLE, library: &str) -> Result<usize> {
         0x48 0x89 0xDC
         0x5B
         0xC3                                
-    ", to_hex(lib_path_ptr), to_hex(loadlib_ptr), to_hex(result_ptr))
-        .replace(" ", "")
-        .replace("\n", "")
-        .replace("0x", "");
+    ",
+        to_hex(lib_path_ptr),
+        to_hex(loadlib_ptr),
+        to_hex(result_ptr)
+    )
+    .replace(" ", "")
+    .replace("\n", "")
+    .replace("0x", "");
 
     let mut payload = hex::decode(payload_str).unwrap();
 
@@ -121,7 +145,7 @@ unsafe fn remote_loadlib(proc_handle: HANDLE, library: &str) -> Result<usize> {
         ptr::null_mut(),
         payload.len(),
         MEM_COMMIT,
-        PAGE_EXECUTE_READWRITE
+        PAGE_EXECUTE_READWRITE,
     );
 
     // Write shellcode into process.
@@ -131,7 +155,7 @@ unsafe fn remote_loadlib(proc_handle: HANDLE, library: &str) -> Result<usize> {
         shellcode_ptr,
         payload.as_mut_ptr() as _,
         payload.len(),
-        &mut bytes_written
+        &mut bytes_written,
     );
 
     println!("Remote LoadLibrary shellcode written to remote process.");
@@ -143,12 +167,14 @@ unsafe fn remote_loadlib(proc_handle: HANDLE, library: &str) -> Result<usize> {
         proc_handle,
         ptr::null_mut(),
         0,
-        Some(std::mem::transmute::<_, unsafe extern "system" fn(lpthreadparameter: *mut c_void) -> u32>(shellcode_ptr)),
+        Some(std::mem::transmute::<
+            _,
+            unsafe extern "system" fn(lpthreadparameter: *mut c_void) -> u32,
+        >(shellcode_ptr)),
         ptr::null_mut(),
         0,
-        ptr::null_mut()
+        ptr::null_mut(),
     );
-
 
     println!("Thread spawned in remote process.");
 
@@ -159,15 +185,19 @@ unsafe fn remote_loadlib(proc_handle: HANDLE, library: &str) -> Result<usize> {
     let mut result = HINSTANCE::default();
     let mut bytes_read: usize = 0;
     ReadProcessMemory(
-        proc_handle, 
-        result_ptr, 
-        &mut result as *mut HINSTANCE as _, 
-        size_of::<HINSTANCE>(), 
-        &mut bytes_read
+        proc_handle,
+        result_ptr,
+        &mut result as *mut HINSTANCE as _,
+        size_of::<HINSTANCE>(),
+        &mut bytes_read,
     );
 
     if bytes_read != size_of::<HINSTANCE>() {
-        return Err(anyhow!("Read an invalid number of bytes. Expected {}, got {}.", size_of::<HINSTANCE>(), bytes_read));
+        return Err(anyhow!(
+            "Read an invalid number of bytes. Expected {}, got {}.",
+            size_of::<HINSTANCE>(),
+            bytes_read
+        ));
     }
 
     println!("{:x?}", result_ptr);
@@ -181,11 +211,7 @@ unsafe fn remote_loadlib(proc_handle: HANDLE, library: &str) -> Result<usize> {
 }
 
 unsafe fn get_lib_offset(library: &str, func_name: &str) -> Result<usize> {
-    let module_handle = LoadLibraryExA(
-        library,
-        HANDLE(0),
-        DONT_RESOLVE_DLL_REFERENCES
-    );
+    let module_handle = LoadLibraryExA(library, HANDLE(0), DONT_RESOLVE_DLL_REFERENCES);
 
     let module_base = std::mem::transmute::<_, *const c_void>(module_handle);
 

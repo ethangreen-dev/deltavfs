@@ -22,12 +22,7 @@ static TEST_RECALL: OnceCell<usize> = OnceCell::new();
 
 #[no_mangle]
 unsafe extern "stdcall" fn hook_init() {
-    match AllocConsole() {
-        BOOL(1) => println!("Allocated console."),
-        _ => println!("Something broke."),
-    }
-
-    println!("Hello from the DLL!");
+    println!("Hook initialization.");
 
     let target_addr = pe::get_func_addr("kernel32", "CreateFileW").unwrap();
     let recall = hook::install_hook(target_addr, test as _).unwrap();
