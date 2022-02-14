@@ -1,5 +1,5 @@
-use std::path::Path;
 use std::ffi::c_void;
+use std::path::Path;
 
 use anyhow::anyhow;
 use anyhow::Result;
@@ -15,18 +15,18 @@ pub fn get_func_addr(module: &str, func: &str) -> Result<*const c_void> {
     }
 
     // Get a HANDLE for the module.
-    let module_handle = match unsafe {
-            GetModuleHandleA(module)
-        } {
+    let module_handle = match unsafe { GetModuleHandleA(module) } {
         HINSTANCE(0) => return Err(anyhow!("Failed to get HANDLE for module '{}'.", module)),
-        x => x
+        x => x,
     };
 
     // Get the address of the function from within the module.
-    match unsafe {
-            GetProcAddress(module_handle, func)
-        } {
+    match unsafe { GetProcAddress(module_handle, func) } {
         Some(x) => Ok(x as *const () as _),
-        None => Err(anyhow!("Failed to get address of func '{}' in module '{}'.", func, module)),
+        None => Err(anyhow!(
+            "Failed to get address of func '{}' in module '{}'.",
+            func,
+            module
+        )),
     }
 }

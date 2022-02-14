@@ -1,13 +1,13 @@
-use std::{slice, mem, ptr};
 use std::ffi::c_void;
+use std::slice;
 
-use iced_x86::{Decoder, Encoder};
 use anyhow::{anyhow, Result};
+use iced_x86::{Decoder, Encoder};
 
 use crate::hook;
 
 pub unsafe fn get_bounded_size(target_ptr: *const c_void, desired_size: usize) -> Result<usize> {
-    // Create a view over the region of memory to analyse. The size of the region is set by desired_size + 
+    // Create a view over the region of memory to analyse. The size of the region is set by desired_size +
     // 15 bytes, which is the largest an x86_64 instruction can be.
     let target_slice = slice::from_raw_parts(target_ptr as *const u8, desired_size + 15);
     let mut decoder = Decoder::new(64, target_slice, 0);
@@ -44,7 +44,7 @@ pub fn adjust_offsets(instr_buffer: Vec<u8>, old_base: usize, new_base: usize) -
 
         // Check to ensure that the memory location described by old_ip + base_delta does NOT overflow.
         let old_ip = instr.ip_rel_memory_address();
-        let new_ip = (old_ip  as i128) + (base_delta as i128);
+        let new_ip = (old_ip as i128) + (base_delta as i128);
 
         // If it does not overflow, set the IP rel memory address of the current instr to the new offset.
         if new_ip < i32::MAX as _ {
@@ -54,7 +54,7 @@ pub fn adjust_offsets(instr_buffer: Vec<u8>, old_base: usize, new_base: usize) -
 
         println!("[!] i64 addition error while taking sum of old IP and base delta.");
 
-        // JMP instructions may reference indirect addresses, which need to be dereferenced before 
+        // JMP instructions may reference indirect addresses, which need to be dereferenced before
         // the new jump can be created.
         if instr.is_jmp_near_indirect() {
             // let mut old_ip_buf: [u8; 8] = [0; 8];
@@ -64,16 +64,13 @@ pub fn adjust_offsets(instr_buffer: Vec<u8>, old_base: usize, new_base: usize) -
             //     u64::from_le_bytes(old_ip_buf)
             // };
 
-            let old_ip = unsafe {
-                *(old_ip as *const u64)
-            };
+            let old_ip = unsafe { *(old_ip as *const u64) };
 
             // Else, manually insert a jump to destination described by old_ip.
             for byte in hook::make_jmp(old_ip as _)? {
                 encoder.write_u8(byte);
             }
         }
-
     }
 
     Ok(encoder.take_buffer())

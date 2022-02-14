@@ -7,15 +7,13 @@ use shared::pe;
 
 use once_cell::sync::OnceCell;
 
-use widestring::{WideCString};
+use widestring::WideCString;
 use windows::Win32::{
-    Foundation::{BOOL, HANDLE, PWSTR},
+    Foundation::{HANDLE, PWSTR},
     Security::SECURITY_ATTRIBUTES,
     Storage::FileSystem::{
-        CreateFileW, FILE_ACCESS_FLAGS, FILE_CREATION_DISPOSITION, FILE_FLAGS_AND_ATTRIBUTES,
-        FILE_SHARE_MODE,
+        FILE_ACCESS_FLAGS, FILE_CREATION_DISPOSITION, FILE_FLAGS_AND_ATTRIBUTES, FILE_SHARE_MODE,
     },
-    System::Console::AllocConsole,
 };
 
 static TEST_RECALL: OnceCell<usize> = OnceCell::new();

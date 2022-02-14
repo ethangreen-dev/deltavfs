@@ -2,11 +2,9 @@ use std::{ffi::c_void, ptr};
 
 use anyhow::{anyhow, Result};
 
-use windows::Win32::{
-    System::{Memory::{
-        VirtualAlloc, VirtualProtect, MEM_COMMIT, MEM_RESERVE, PAGE_EXECUTE_READWRITE,
-        PAGE_PROTECTION_FLAGS,
-    }, LibraryLoader::GetModuleHandleA},
+use windows::Win32::System::Memory::{
+    VirtualAlloc, VirtualProtect, MEM_COMMIT, MEM_RESERVE, PAGE_EXECUTE_READWRITE,
+    PAGE_PROTECTION_FLAGS,
 };
 
 pub struct WriteGuard {

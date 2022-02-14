@@ -2,23 +2,30 @@ use crate::asm;
 use crate::mem_utils;
 use crate::mem_utils::WriteGuard;
 
-use std::mem;
 use std::ffi::c_void;
+use std::mem;
 
-use hex;
 use anyhow::Result;
+use hex;
 
 const JMP_SIZE64: usize = 14;
 
-pub unsafe fn install_hook(target_ptr: *const c_void, dest_ptr: *const c_void) -> Result<(*const c_void)> {
+pub unsafe fn install_hook(
+    target_ptr: *const c_void,
+    dest_ptr: *const c_void,
+) -> Result<*const c_void> {
+
     println!("target_ptr: {:x?}", target_ptr);
     println!("dest:   {:x?}", dest_ptr);
 
-    // Determine the number of bytes to steal from the prologue of the target_ptr function. Note that 
+    // Determine the number of bytes to steal from the prologue of the target_ptr function. Note that
     // partial instructions cannot be left over, so we must first determine instruction boundaries.
     let steal_size = asm::get_bounded_size(target_ptr, JMP_SIZE64)?;
 
-    println!("{} bytes will be stolen from the target_ptr at {:x?}", steal_size, target_ptr);
+    println!(
+        "{} bytes will be stolen from the target_ptr at {:x?}",
+        steal_size, target_ptr
+    );
 
     // Find a suitable location for the trampoline, which will both store the stolen bytes and redirect
     // execution back to the target + JMP size offset.
@@ -37,7 +44,6 @@ pub unsafe fn install_hook(target_ptr: *const c_void, dest_ptr: *const c_void) -
 
     let adjusted_bytes = asm::adjust_offsets(stolen_bytes, target_ptr as _, trampoline_ptr as _)?;
     println!("patched: {:x?}", adjusted_bytes);
-
 
     println!("jmp -> target created.");
 
@@ -58,7 +64,10 @@ pub unsafe fn install_hook(target_ptr: *const c_void, dest_ptr: *const c_void) -
 
     WriteGuard::new(target_ptr, dest_jmp.len()).write(dest_jmp)?;
 
-    println!("jmp -> dest has been written to the target at {:x?}", target_ptr);
+    println!(
+        "jmp -> dest has been written to the target at {:x?}",
+        target_ptr
+    );
 
     Ok(trampoline_ptr as _)
 }
@@ -72,14 +81,18 @@ pub fn make_jmp(dest_ptr: *const c_void) -> Result<Vec<u8>> {
     println!("lower: {:x?}", lower);
 
     // Create the JMP shellcode, embedding the upper and lower byte arrays.
-    let jmp_shellcode = format!("
+    let jmp_shellcode = format!(
+        "
         0x68 {}
         0xC7 0x44 0x24 0x04 {}
         0xC3
-    ", hex::encode(lower.to_ne_bytes()), hex::encode(upper.to_ne_bytes()))
-        .replace(" ", "")
-        .replace("\n", "")
-        .replace("0x", "");
+    ",
+        hex::encode(lower.to_ne_bytes()),
+        hex::encode(upper.to_ne_bytes())
+    )
+    .replace(" ", "")
+    .replace("\n", "")
+    .replace("0x", "");
 
     println!("{} {}", jmp_shellcode.len() / 2, jmp_shellcode);
 
