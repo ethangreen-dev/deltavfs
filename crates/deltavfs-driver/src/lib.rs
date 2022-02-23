@@ -1,3 +1,7 @@
-fn main() {
-    println!("Hello, world!");
+pub struct FsController;
+
+impl FsController {
+    pub fn new() -> FsController {
+        FsController { }
+    }
 }
