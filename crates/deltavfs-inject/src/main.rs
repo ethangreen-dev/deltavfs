@@ -6,7 +6,9 @@ fn main() {
     unsafe {
         env_logger::builder().format_timestamp(None).init();
 
-        injector::inject_into("notepad.exe").unwrap();
+        let path = "E:\\Games\\Steam\\steamapps\\common\\Skyrim Special Edition\\skse64_loader.exe";
+
+        injector::inject_into(path).unwrap();
         println!("Hello, world!");
     }
 }

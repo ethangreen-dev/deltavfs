@@ -10,6 +10,10 @@ use hex;
 
 const JMP_SIZE64: usize = 14;
 
+struct Hook {
+    recall_addr: *const usize
+}
+
 pub unsafe fn install_hook(
     target_ptr: *const c_void,
     dest_ptr: *const c_void,

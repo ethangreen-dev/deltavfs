@@ -65,7 +65,9 @@ pub unsafe fn inject_into(exec_path: &str) -> Result<()> {
         ptr::null_mut(),
     );
 
-    proc.wait()?;
+    loop {
+
+    }
 
     Ok(())
 }
