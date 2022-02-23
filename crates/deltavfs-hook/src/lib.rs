@@ -1,8 +1,9 @@
 mod asm;
 mod hook;
 mod mem_utils;
+mod win32;
 
-use macros::hook;
+use macros::define_hook;
 use shared::pe;
 
 use once_cell::sync::OnceCell;
@@ -25,7 +26,7 @@ unsafe extern "stdcall" fn hook_init() {
     create_file_mapping_init();
 }
 
-#[hook("kernel32", "CreateFileW")]
+#[define_hook("kernel32", "CreateFileW")]
 unsafe fn test(
     file_name: PWSTR,
     desired_access: FILE_ACCESS_FLAGS,
@@ -52,7 +53,7 @@ unsafe fn test(
     handle
 }
 
-#[hook("kernel32", "MapViewOfFile")]
+#[define_hook("kernel32", "MapViewOfFile")]
 unsafe fn map_view_of_file(
     file_mapping_object: HANDLE,
     desired_access: u32,
@@ -73,7 +74,7 @@ unsafe fn map_view_of_file(
     ptr
 }
 
-#[hook("kernel32", "CreateFileMappingW")]
+#[define_hook("kernel32", "CreateFileMappingW")]
 unsafe fn create_file_mapping(
     file: HANDLE,
     attributes: *const SECURITY_ATTRIBUTES,

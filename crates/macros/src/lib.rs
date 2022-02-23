@@ -4,7 +4,7 @@ use quote::{format_ident, quote};
 use syn::{parse_macro_input, ItemFn, AttributeArgs};
 
 #[proc_macro_attribute]
-pub fn hook(args: TokenStream, input: TokenStream) -> TokenStream {
+pub fn define_hook(args: TokenStream, input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as ItemFn);
     let args = parse_macro_input!(args as AttributeArgs);
 
@@ -29,17 +29,17 @@ pub fn hook(args: TokenStream, input: TokenStream) -> TokenStream {
     let quoted = quote! {
         #(#attrs)* #vis #sig {
             type RecallType = fn(#args) #ret;
-            let recall: RecallType = std::mem::transmute::<usize, RecallType>(*#recall_name.get().unwrap());
+            let recall: RecallType = ::std::mem::transmute::<usize, RecallType>(*#recall_name.get().unwrap());
 
             #(#stmts)*
         }
 
-        static #recall_name: OnceCell<usize> = OnceCell::new();
+        static #recall_name: ::once_cell::sync::OnceCell<usize> = ::once_cell::sync::OnceCell::new();
 
         fn #init_name() {
             unsafe {
-                let target_addr = pe::get_func_addr(#module, #func).unwrap();
-                let recall = hook::install_hook(target_addr, #name as _).unwrap();
+                let target_addr = crate::pe::get_func_addr(#module, #func).unwrap();
+                let recall = crate::hook::install_hook(target_addr, #name as _).unwrap();
 
                 #recall_name.set(recall as _).expect("Failed to set recall value for #recall_name.")
             }
