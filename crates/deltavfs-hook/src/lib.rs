@@ -16,10 +16,13 @@ use windows::Win32::{
         FILE_ACCESS_FLAGS, FILE_CREATION_DISPOSITION, FILE_FLAGS_AND_ATTRIBUTES, FILE_SHARE_MODE,
     },
 };
+use crate::win32::dir_iter;
 
 #[no_mangle]
 unsafe extern "stdcall" fn hook_init() {
     println!("Hook initialization.");
+
+    dir_iter::init();
 
     test_init();
     map_view_of_file_init();
