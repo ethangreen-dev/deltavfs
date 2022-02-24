@@ -10,8 +10,9 @@ use hex;
 
 const JMP_SIZE64: usize = 14;
 
-struct Hook {
-    recall_addr: *const usize
+pub trait Hook {
+    fn install();
+    fn uninstall();
 }
 
 pub unsafe fn install_hook(
