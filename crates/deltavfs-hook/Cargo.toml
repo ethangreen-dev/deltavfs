@@ -1,6 +1,6 @@
 [package]
 name = "deltavfs-hook"
-version = "0.1.0"
+version = "0.0.0"
 edition = "2021"
 
 [lib]
@@ -9,6 +9,7 @@ crate-type = ["cdylib"]
 [dependencies]
 macros = { version = "0.0.0", path = "../macros" }
 shared = { version = "0.0.0", path = "../shared" }
+deltavfs-driver = { version = "0.0.0", path = "../deltavfs-driver" }
 
 hex = "0.4"
 anyhow = "1.0"
