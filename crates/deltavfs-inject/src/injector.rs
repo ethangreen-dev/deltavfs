@@ -5,6 +5,7 @@ use std::io::{BufRead, BufReader};
 use std::mem::size_of;
 use std::process::{Command, Stdio};
 use std::{ptr, thread};
+use std::os::windows::process::CommandExt;
 
 use anyhow::{anyhow, Result};
 use hex;
@@ -16,7 +17,7 @@ use windows::Win32::System::LibraryLoader::{
     GetProcAddress, LoadLibraryExA, DONT_RESOLVE_DLL_REFERENCES,
 };
 use windows::Win32::System::Memory::{VirtualFree, MEM_COMMIT, MEM_FREE, PAGE_EXECUTE_READWRITE};
-use windows::Win32::System::Threading::{CreateRemoteThread, WaitForSingleObject};
+use windows::Win32::System::Threading::{CREATE_SUSPENDED, CreateRemoteThread, WaitForSingleObject};
 use windows::Win32::System::{
     Memory::VirtualAllocEx,
     Threading::{OpenProcess, PROCESS_ALL_ACCESS},
@@ -29,7 +30,10 @@ pub unsafe fn inject_into(exec_path: &str) -> Result<()> {
     );
 
     // Spawn the process in a suspended state.
-    let mut proc = Command::new(exec_path).stdout(Stdio::piped()).spawn()?;
+    let mut proc = Command::new(exec_path)
+        .creation_flags(CREATE_SUSPENDED)
+        .stdout(Stdio::piped())
+        .spawn()?;
 
     let stdout = proc
         .stdout

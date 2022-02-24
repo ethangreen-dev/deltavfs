@@ -6,7 +6,7 @@ fn main() {
     unsafe {
         env_logger::builder().format_timestamp(None).init();
 
-        let path = "E:\\Games\\Steam\\steamapps\\common\\Skyrim Special Edition\\skse64_loader.exe";
+        let path = r#"C:\Users\green\Dev\rust\IterDirTest\target\debug\IterDirTest.exe"#;
 
         injector::inject_into(path).unwrap();
         println!("Hello, world!");
