@@ -36,13 +36,17 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "deltavfs-driver"
-version = "0.1.0"
+version = "0.0.0"
+dependencies = [
+ "windows",
+]
 
 [[package]]
 name = "deltavfs-hook"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "anyhow",
+ "deltavfs-driver",
  "hex",
  "iced-x86",
  "macros",
@@ -54,7 +58,7 @@ dependencies = [
 
 [[package]]
 name = "deltavfs-inject"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "anyhow",
  "env_logger",
