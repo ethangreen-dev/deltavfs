@@ -3,19 +3,21 @@ use crate::mem_utils;
 use crate::mem_utils::WriteGuard;
 
 use std::ffi::c_void;
-use std::mem;
 
 use anyhow::Result;
 use hex;
 
-const JMP_SIZE64: usize = 14;
+const BITNESS: u32 = match cfg!(target_pointer_width = "64") {
+    true => 64,
+    false => 32,
+};
 
-pub trait Hook {
-    fn install();
-    fn uninstall();
-}
+const JMP_SIZE: usize = match cfg!(target_pointer_width = "64") {
+    true => 14,
+    false => 5
+};
 
-pub unsafe fn install_hook(
+pub unsafe fn install(
     target_ptr: *const c_void,
     dest_ptr: *const c_void,
 ) -> Result<*const c_void> {
@@ -25,7 +27,7 @@ pub unsafe fn install_hook(
 
     // Determine the number of bytes to steal from the prologue of the target_ptr function. Note that
     // partial instructions cannot be left over, so we must first determine instruction boundaries.
-    let steal_size = asm::get_bounded_size(target_ptr, JMP_SIZE64)?;
+    let steal_size = asm::get_bounded_size(target_ptr, JMP_SIZE)?;
 
     println!(
         "{} bytes will be stolen from the target_ptr at {:x?}",
@@ -34,14 +36,14 @@ pub unsafe fn install_hook(
 
     // Find a suitable location for the trampoline, which will both store the stolen bytes and redirect
     // execution back to the target + JMP size offset.
-    let trampoline_size = steal_size + JMP_SIZE64;
+    let trampoline_size = steal_size + JMP_SIZE;
     let trampoline_ptr = mem_utils::get_exec_cave(trampoline_size, target_ptr)?;
 
     println!("created executable cave at {:x?}.", trampoline_ptr);
 
     // Determine the trampoline -> target ptr and create the jmp shellcode.
     let target_jmp_dest = ((target_ptr as usize) + steal_size) as *const c_void;
-    let mut target_jmp = make_jmp(target_jmp_dest)?;
+    let mut target_jmp = asm::make_jmp(target_jmp_dest)?;
 
     // Copy steal_size bytes from the target function prologue into the stolen_bytes buffer.
     let stolen_bytes = std::slice::from_raw_parts(target_ptr as *const u8, steal_size).to_vec();
@@ -62,8 +64,8 @@ pub unsafe fn install_hook(
     println!("trampoline has been written to {:x?}", trampoline_ptr);
 
     // Write the JMP -> dest_ptr to the prologue of the target.
-    let mut dest_jmp = make_jmp(dest_ptr)?;
-    dest_jmp.append(&mut vec![0x90 as u8; steal_size - JMP_SIZE64]);
+    let mut dest_jmp = asm::make_jmp(dest_ptr)?;
+    dest_jmp.append(&mut vec![0x90 as u8; steal_size - JMP_SIZE]);
 
     println!("dest_jmp: {:x?}", dest_jmp);
 
@@ -75,31 +77,4 @@ pub unsafe fn install_hook(
     );
 
     Ok(trampoline_ptr as _)
-}
-
-pub fn make_jmp(dest_ptr: *const c_void) -> Result<Vec<u8>> {
-    // Split the destination ptr into upper and lower 32 bit components.
-    let upper = ((dest_ptr as usize) >> (mem::size_of::<u32>() * 8)) as u32;
-    let lower = ((dest_ptr as usize) & (u32::MAX as usize)) as u32;
-
-    println!("upper: {:x?}", upper);
-    println!("lower: {:x?}", lower);
-
-    // Create the JMP shellcode, embedding the upper and lower byte arrays.
-    let jmp_shellcode = format!(
-        "
-        0x68 {}
-        0xC7 0x44 0x24 0x04 {}
-        0xC3
-    ",
-        hex::encode(lower.to_ne_bytes()),
-        hex::encode(upper.to_ne_bytes())
-    )
-    .replace(" ", "")
-    .replace("\n", "")
-    .replace("0x", "");
-
-    println!("{} {}", jmp_shellcode.len() / 2, jmp_shellcode);
-
-    Ok(hex::decode(jmp_shellcode)?)
 }

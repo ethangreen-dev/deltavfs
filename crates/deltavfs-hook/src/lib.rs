@@ -1,12 +1,22 @@
+extern crate core;
+
 mod asm;
 mod hook;
 mod mem_utils;
 mod win32;
 
 use macros::define_hook;
+use rkyv::ser::Serializer;
 use shared::pe;
 
+use shared::ipc::pipe::NamedPipe;
+use shared::ipc::models::{
+    Request,
+    ResolvePathRequest
+};
+
 use once_cell::sync::OnceCell;
+use rkyv::ser::serializers::AllocSerializer;
 
 use widestring::WideCString;
 use windows::Win32::{
@@ -16,13 +26,19 @@ use windows::Win32::{
         FILE_ACCESS_FLAGS, FILE_CREATION_DISPOSITION, FILE_FLAGS_AND_ATTRIBUTES, FILE_SHARE_MODE,
     },
 };
-use crate::win32::dir_iter;
+
+const BITNESS: u32 = match cfg!(target_pointer_size = "64") {
+    true => 64,
+    false => 32
+};
+
+static PIPE: OnceCell<NamedPipe> = OnceCell::new();
 
 #[no_mangle]
 unsafe extern "stdcall" fn hook_init() {
     println!("Hook initialization.");
 
-    dir_iter::init();
+    PIPE.set(NamedPipe::new_client(r#"\\.\pipe\deltavfs"#).unwrap()).expect("failed");
 
     test_init();
     map_view_of_file_init();
@@ -39,7 +55,18 @@ unsafe fn test(
     flags_and_attributes: FILE_FLAGS_AND_ATTRIBUTES,
     template_file: HANDLE,
 ) -> HANDLE {
-    let thing = WideCString::from_ptr_str(file_name.0).to_string().unwrap();
+    let path = WideCString::from_ptr_str(file_name.0).to_string().unwrap();
+    let req = ResolvePathRequest {
+        path
+    };
+
+    let mut serializer = AllocSerializer::<256>::default();
+    serializer.write(&[Request::ResolvePath as u8]).unwrap();
+    serializer.serialize_value(&req).unwrap();
+
+    let payload = serializer.into_serializer().into_inner();
+
+    PIPE.get().unwrap().write(payload.as_slice()).unwrap();
 
     let handle = recall(
         file_name,
@@ -51,7 +78,7 @@ unsafe fn test(
         template_file,
     );
 
-    println!("[CreateFileW] with path '{}' which returned handle {:x?}", thing, handle);
+    println!("[CreateFileW] with path '{}' which returned handle {:x?}", "adwadw", handle);
 
     handle
 }

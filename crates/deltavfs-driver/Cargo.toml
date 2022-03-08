@@ -6,6 +6,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+anyhow = "1.0.55"
+rkyv = "0.7.33"
+shared = { version = "0.0.0", path = "../shared" }
 
 [dependencies.windows]
 version = "0.30.0"

@@ -23,7 +23,7 @@ use windows::Win32::System::{
     Threading::{OpenProcess, PROCESS_ALL_ACCESS},
 };
 
-pub unsafe fn inject_into(exec_path: &str) -> Result<()> {
+pub unsafe fn inject_into(exec_path: &str, args: &[&str]) -> Result<()> {
     info!(
         "Preparing to inject payload into executable at '{}'",
         exec_path
@@ -31,6 +31,7 @@ pub unsafe fn inject_into(exec_path: &str) -> Result<()> {
 
     // Spawn the process in a suspended state.
     let mut proc = Command::new(exec_path)
+        .args(args)
         .creation_flags(CREATE_SUSPENDED)
         .stdout(Stdio::piped())
         .spawn()?;
