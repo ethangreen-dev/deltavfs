@@ -43,6 +43,8 @@ pub unsafe fn install(
 
     // Determine the trampoline -> target ptr and create the jmp shellcode.
     let target_jmp_dest = ((target_ptr as usize) + steal_size) as *const c_void;
+
+    println!("Something broke.");
     let mut target_jmp = asm::make_jmp(target_jmp_dest)?;
 
     // Copy steal_size bytes from the target function prologue into the stolen_bytes buffer.

@@ -1,5 +1,5 @@
 [package]
-name = "deltavfs-driver"
+name = "deltavfs-service"
 version = "0.0.0"
 edition = "2021"
 

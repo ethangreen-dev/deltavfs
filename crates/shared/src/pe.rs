@@ -8,6 +8,13 @@ use windows::Win32::Foundation::HINSTANCE;
 use windows::Win32::System::LibraryLoader::GetModuleHandleA;
 use windows::Win32::System::LibraryLoader::GetProcAddress;
 
+#[repr(u32)]
+#[derive(Clone)]
+pub enum Bitness {
+    X32 = 32,
+    X64 = 64,
+}
+
 pub fn get_func_addr(module: &str, func: &str) -> Result<*const c_void> {
     // If the module is not a path and is instead a win32 name, skip loading.
     if !Path::new(module).exists() {

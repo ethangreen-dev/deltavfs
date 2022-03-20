@@ -4,7 +4,6 @@ use proc_macro::TokenStream;
 
 use quote::{format_ident, quote};
 use syn::{parse_macro_input, ItemFn, AttributeArgs, Block, braced, Token, ItemImpl, ImplItem};
-use syn::Item::Impl;
 
 #[proc_macro_attribute]
 pub fn define_hook(args: TokenStream, input: TokenStream) -> TokenStream {
@@ -42,7 +41,7 @@ pub fn define_hook(args: TokenStream, input: TokenStream) -> TokenStream {
         fn #init_name() {
             unsafe {
                 let target_addr = crate::pe::get_func_addr(#module, #func).unwrap();
-                let recall = crate::hook::install_hook(target_addr, #name as _).unwrap();
+                let recall = crate::hook::raw_hook64::install(target_addr, #name as _).unwrap();
 
                 #recall_name.set(recall as _).expect("Failed to set recall value for #recall_name.")
             }

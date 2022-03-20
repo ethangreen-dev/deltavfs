@@ -23,6 +23,9 @@ use windows::Win32::System::{
     Threading::{OpenProcess, PROCESS_ALL_ACCESS},
 };
 
+use shared::inject::Loader;
+use shared::pe::Bitness;
+
 pub unsafe fn inject_into(exec_path: &str, args: &[&str]) -> Result<()> {
     info!(
         "Preparing to inject payload into executable at '{}'",
@@ -50,8 +53,10 @@ pub unsafe fn inject_into(exec_path: &str, args: &[&str]) -> Result<()> {
 
     let proc_handle = OpenProcess(PROCESS_ALL_ACCESS, false, proc.id());
 
-    let library = "C:\\Users\\green\\Dev\\rust\\deltavfs\\target\\debug\\deltavfs_hook.dll";
-    let lib_base = remote_loadlib(proc_handle, library)?;
+    let library = "C:\\Users\\green\\Dev\\rust\\deltavfs\\target\\debug\\deltavfs_host.dll";
+    let lib_base = Loader::new(proc_handle, Bitness::X64)
+        .setup(library)?
+        .inject()?;
 
     // Determine the location of the mainThread function within the target.
     let local_delta = get_lib_offset(library, "hook_init\0")?;
@@ -121,7 +126,7 @@ unsafe fn remote_loadlib(proc_handle: HANDLE, library: &str) -> Result<usize> {
 
     // Create the payload string, embed relevant addresses, and convert to byte array.
     let payload_str = format!(
-        "      
+    "      
         0x53
         0x48 0x89 0xE3
         0x48 0x83 0xEC 0x20
@@ -132,7 +137,7 @@ unsafe fn remote_loadlib(proc_handle: HANDLE, library: &str) -> Result<usize> {
         0x48 0x89 0x02
         0x48 0x89 0xDC
         0x5B
-        0xC3                                
+        0xC3
     ",
         to_hex(lib_path_ptr),
         to_hex(loadlib_ptr),

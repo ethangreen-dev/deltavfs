@@ -27,10 +27,12 @@ use windows::Win32::{
     },
 };
 
-const BITNESS: u32 = match cfg!(target_pointer_size = "64") {
-    true => 64,
-    false => 32
-};
+// const BITNESS: u32 = match cfg!(target_pointer_size = "64") {
+//     true => 64,
+//     false => 32
+// };
+
+const BITNESS: u32 = 64;
 
 static PIPE: OnceCell<NamedPipe> = OnceCell::new();
 

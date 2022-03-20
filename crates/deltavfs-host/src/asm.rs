@@ -77,7 +77,8 @@ pub fn adjust_offsets(instr_buffer: Vec<u8>, old_base: usize, new_base: usize) -
 }
 
 pub fn make_jmp(dest_ptr: *const c_void) -> Result<Vec<u8>> {
-    // If BITNESS is set to 32 then we can get to the destination with a 4-byte direct JMP.
+    // If BITNESS is set to 32 then we can get to the destination with a 5-byte direct JMP.
+    println!("Test Hit");
     if BITNESS == 32 {
         let dest_ptr = dest_ptr as u32;
         let hex = hex::decode(

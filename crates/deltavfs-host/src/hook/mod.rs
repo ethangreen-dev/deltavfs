@@ -1,5 +1,5 @@
-mod raw_hook64;
-mod raw_hook32;
+pub mod raw_hook64;
+pub mod raw_hook32;
 
 use anyhow::Result;
 
