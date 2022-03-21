@@ -1,29 +1,21 @@
-use shared::pe;
-
+use std::path::{Path, PathBuf};
 use std::ffi::c_void;
 use std::io::{BufRead, BufReader};
-use std::mem::size_of;
 use std::process::{Command, Stdio};
 use std::{ptr, thread};
 use std::os::windows::process::CommandExt;
 
 use anyhow::{anyhow, Result};
-use hex;
 use log::*;
 
-use windows::Win32::Foundation::{CloseHandle, GetLastError, HANDLE, HINSTANCE};
-use windows::Win32::System::Diagnostics::Debug::{ReadProcessMemory, WriteProcessMemory};
-use windows::Win32::System::LibraryLoader::{
-    GetProcAddress, LoadLibraryExA, DONT_RESOLVE_DLL_REFERENCES,
-};
-use windows::Win32::System::Memory::{VirtualFree, MEM_COMMIT, MEM_FREE, PAGE_EXECUTE_READWRITE};
-use windows::Win32::System::Threading::{CREATE_SUSPENDED, CreateRemoteThread, WaitForSingleObject};
+use windows::Win32::Foundation::{BOOL, CloseHandle, GetLastError, HANDLE};
+use windows::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryExA, DONT_RESOLVE_DLL_REFERENCES, LOAD_LIBRARY_AS_DATAFILE};
+use windows::Win32::System::Threading::{CREATE_SUSPENDED, CreateRemoteThread, IsWow64Process, WaitForSingleObject};
 use windows::Win32::System::{
-    Memory::VirtualAllocEx,
     Threading::{OpenProcess, PROCESS_ALL_ACCESS},
 };
 
-use shared::inject::Loader;
+use shared::inject::loader::Loader;
 use shared::pe::Bitness;
 
 pub unsafe fn inject_into(exec_path: &str, args: &[&str]) -> Result<()> {
@@ -53,19 +45,53 @@ pub unsafe fn inject_into(exec_path: &str, args: &[&str]) -> Result<()> {
 
     let proc_handle = OpenProcess(PROCESS_ALL_ACCESS, false, proc.id());
 
-    let library = "C:\\Users\\green\\Dev\\rust\\deltavfs\\target\\debug\\deltavfs_host.dll";
-    let lib_base = Loader::new(proc_handle, Bitness::X64)
-        .setup(library)?
+    // Determine the process' bitness.
+    let proc_bitness = {
+        let mut wow64_flag = BOOL(0);
+        if IsWow64Process(proc_handle, &mut wow64_flag) == BOOL(0) {
+            return Err(anyhow!("IsWowProcess64 call failed, returned BOOL(0)."))
+        };
+
+        match wow64_flag {
+            BOOL(0) => Ok(Bitness::X64),
+            BOOL(1) => Ok(Bitness::X32),
+            _ => Err(anyhow!("IsWow64Process call failed to determine bitness of target process."))
+        }
+    }?;
+
+    println!("{}", std::env::current_exe().unwrap().to_str().unwrap());
+
+    // Determine the path of the host binary according to proc_bitness.
+    let library = std::env::current_exe()?
+        .parent()
+        .unwrap()
+        .join(match proc_bitness {
+            Bitness::X32 => "../i686-pc-windows-msvc/debug/deltavfs_host32.dll",
+            Bitness::X64 => "deltavfs_host64.dll"
+        }).canonicalize()?;
+
+    println!("Using host binary '{}'", library.to_str().unwrap());
+
+    let lib_base = Loader::new(proc_handle, proc_bitness)
+        .setup(library.to_str().unwrap())?
         .inject()?;
 
+    let test = std::env::current_exe()?
+        .parent()
+        .unwrap()
+        .join("deltavfs_host64.dll")
+        .canonicalize()?;
+
+    println!("Lib base at {:x?}", lib_base);
+
     // Determine the location of the mainThread function within the target.
-    let local_delta = get_lib_offset(library, "hook_init\0")?;
+    let local_delta = get_lib_offset(test.to_str().unwrap(), "hook_init")?;
     let entry_point = lib_base + local_delta;
 
     println!("Found remote entry point at: {:x?}", entry_point);
 
     // Create a thread at mainThread to begin hook installation.
-    CreateRemoteThread(
+    let hook_thread = CreateRemoteThread(
         proc_handle,
         ptr::null_mut(),
         0,
@@ -75,169 +101,30 @@ pub unsafe fn inject_into(exec_path: &str, args: &[&str]) -> Result<()> {
         ptr::null_mut(),
     );
 
-    loop {
+    WaitForSingleObject(hook_thread, 10000);
+    CloseHandle(hook_thread);
 
-    }
+    println!("deltavfs-host has been successfully injected into the target process.");
 
     Ok(())
 }
 
-unsafe fn remote_loadlib(proc_handle: HANDLE, library: &str) -> Result<usize> {
-    // Allocate space in the remote process to store the path of the library.
-    let lib_path_ptr = VirtualAllocEx(
-        proc_handle,
-        ptr::null_mut(),
-        library.len() + 1,
-        MEM_COMMIT,
-        PAGE_EXECUTE_READWRITE,
-    );
-
-    println!("{:x?}", lib_path_ptr);
-
-    println!(
-        "Remote allocated {} bytes for library path.",
-        library.len() + 1
-    );
-
-    // Allocate space in the remote process to store the result of our LoadLibraryA call.
-    let result_ptr = VirtualAllocEx(
-        proc_handle,
-        ptr::null_mut(),
-        size_of::<HINSTANCE>(),
-        MEM_COMMIT,
-        PAGE_EXECUTE_READWRITE,
-    );
-
-    println!(
-        "Remote allocated {} bytes for LoadLibraryA result.",
-        size_of::<HINSTANCE>()
-    );
-
-    // Write the path of the library to memory.
-    WriteProcessMemory(
-        proc_handle,
-        lib_path_ptr,
-        library.as_bytes().as_ptr() as _,
-        library.len(),
-        ptr::null_mut(),
-    );
-
-    let loadlib_ptr = pe::get_func_addr("kernel32", "LoadLibraryA")?;
-
-    // Create the payload string, embed relevant addresses, and convert to byte array.
-    let payload_str = format!(
-    "      
-        0x53
-        0x48 0x89 0xE3
-        0x48 0x83 0xEC 0x20
-        0x48 0xB9 {}
-        0x48 0xBA {}
-        0xFF 0xD2
-        0x48 0xBA {}
-        0x48 0x89 0x02
-        0x48 0x89 0xDC
-        0x5B
-        0xC3
-    ",
-        to_hex(lib_path_ptr),
-        to_hex(loadlib_ptr),
-        to_hex(result_ptr)
-    )
-    .replace(" ", "")
-    .replace("\n", "")
-    .replace("0x", "");
-
-    let mut payload = hex::decode(payload_str).unwrap();
-
-    println!("{:X?}", payload);
-
-    // Allocate remote memory for shellcode.
-    let shellcode_ptr = VirtualAllocEx(
-        proc_handle,
-        ptr::null_mut(),
-        payload.len(),
-        MEM_COMMIT,
-        PAGE_EXECUTE_READWRITE,
-    );
-
-    // Write shellcode into process.
-    let mut bytes_written: usize = 0;
-    WriteProcessMemory(
-        proc_handle,
-        shellcode_ptr,
-        payload.as_mut_ptr() as _,
-        payload.len(),
-        &mut bytes_written,
-    );
-
-    println!("Remote LoadLibrary shellcode written to remote process.");
-    println!("shellcode ptr: {:x?}", shellcode_ptr);
-    println!("result ptr: {:x?}", result_ptr);
-
-    // Spawn a remote thread to execute the payload.
-    let loader_thread = CreateRemoteThread(
-        proc_handle,
-        ptr::null_mut(),
-        0,
-        Some(std::mem::transmute::<
-            _,
-            unsafe extern "system" fn(lpthreadparameter: *mut c_void) -> u32,
-        >(shellcode_ptr)),
-        ptr::null_mut(),
-        0,
-        ptr::null_mut(),
-    );
-
-    println!("Thread spawned in remote process.");
-
-    WaitForSingleObject(loader_thread, 100000000);
-    CloseHandle(loader_thread);
-
-    // Read the remote process' memory for the result.
-    let mut result = HINSTANCE::default();
-    let mut bytes_read: usize = 0;
-    ReadProcessMemory(
-        proc_handle,
-        result_ptr,
-        &mut result as *mut HINSTANCE as _,
-        size_of::<HINSTANCE>(),
-        &mut bytes_read,
-    );
-
-    if bytes_read != size_of::<HINSTANCE>() {
-        return Err(anyhow!(
-            "Read an invalid number of bytes. Expected {}, got {}.",
-            size_of::<HINSTANCE>(),
-            bytes_read
-        ));
-    }
-
-    println!("{:x?}", result_ptr);
-
-    // Cleanup remote memory.
-    VirtualFree(lib_path_ptr, 0, MEM_FREE);
-    VirtualFree(result_ptr, 0, MEM_FREE);
-    VirtualFree(shellcode_ptr, 0, MEM_FREE);
-
-    Ok(std::mem::transmute::<_, usize>(result))
-}
-
 unsafe fn get_lib_offset(library: &str, func_name: &str) -> Result<usize> {
-    let module_handle = LoadLibraryExA(library, HANDLE(0), DONT_RESOLVE_DLL_REFERENCES);
+    let module_handle = LoadLibraryExA(
+        library,
+        HANDLE(0),
+        DONT_RESOLVE_DLL_REFERENCES
+    );
 
     let module_base = std::mem::transmute::<_, *const c_void>(module_handle);
 
     let local_ptr = match GetProcAddress(module_handle, func_name) {
         Some(x) => x as *const () as *const c_void,
-        None => return Err(anyhow!("Unable to find location of func.")),
+        None => return Err(anyhow!("GetProcAddress call failed, unable to determine location of function.")),
     };
 
     let err = GetLastError();
     println!("{:?}", err);
 
     Ok((local_ptr as usize) - (module_base as usize))
-}
-
-fn to_hex(ptr: *const c_void) -> String {
-    hex::encode((ptr as usize).to_le_bytes())
 }

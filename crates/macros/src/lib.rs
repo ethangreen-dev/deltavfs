@@ -38,7 +38,7 @@ pub fn define_hook(args: TokenStream, input: TokenStream) -> TokenStream {
 
         static #recall_name: ::once_cell::sync::OnceCell<usize> = ::once_cell::sync::OnceCell::new();
 
-        fn #init_name() {
+        pub fn #init_name() {
             unsafe {
                 let target_addr = crate::pe::get_func_addr(#module, #func).unwrap();
                 let recall = crate::hook::raw_hook64::install(target_addr, #name as _).unwrap();
@@ -84,7 +84,7 @@ pub fn define_hook_test(args: TokenStream, input: TokenStream) -> TokenStream {
             #(#stmts)*
         }
 
-        fn #init_name() {
+        pub fn #init_name() {
             unsafe {
                 let target_addr = crate::pe::get_func_addr(#module, #func).unwrap();
                 let recall_addr = crate::hook::install_hook(target_addr, #name as _).unwrap();

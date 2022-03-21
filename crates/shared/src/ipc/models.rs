@@ -13,3 +13,8 @@ pub enum Request {
 pub struct ResolvePathRequest {
     pub path: String
 }
+
+#[derive(Archive, Serialize, Deserialize)]
+pub struct Echo {
+    pub msg: String
+}

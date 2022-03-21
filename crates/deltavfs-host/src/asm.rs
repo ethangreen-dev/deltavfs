@@ -3,6 +3,7 @@ use crate::BITNESS;
 use std::ffi::c_void;
 use std::{mem, slice};
 
+use log::{warn, debug};
 use anyhow::{anyhow, Result};
 use iced_x86::{Decoder, Encoder};
 
@@ -35,7 +36,7 @@ pub fn adjust_offsets(instr_buffer: Vec<u8>, old_base: usize, new_base: usize) -
     while decoder.can_decode() {
         let instr = decoder.decode();
 
-        println!("decoded: {}", instr.clone());
+        debug!("decoded: {}", instr.clone());
 
         if !instr.is_ip_rel_memory_operand() {
             encoder.encode(&instr, instr.ip())?;
@@ -52,18 +53,11 @@ pub fn adjust_offsets(instr_buffer: Vec<u8>, old_base: usize, new_base: usize) -
             continue;
         }
 
-        println!("[!] i64 addition error while taking sum of old IP and base delta.");
+        warn!("i64 addition error while taking sum of old IP and base delta.");
 
         // JMP instructions may reference indirect addresses, which need to be dereferenced before
         // the new jump can be created.
         if instr.is_jmp_near_indirect() {
-            // let mut old_ip_buf: [u8; 8] = [0; 8];
-
-            // let old_ip = unsafe {
-            //     ptr::copy(old_ip as *const u64 as *const u8, old_ip_buf.as_mut_ptr(), 6);
-            //     u64::from_le_bytes(old_ip_buf)
-            // };
-
             let old_ip = unsafe { *(old_ip as *const u64) };
 
             // Else, manually insert a jump to destination described by old_ip.
@@ -77,12 +71,13 @@ pub fn adjust_offsets(instr_buffer: Vec<u8>, old_base: usize, new_base: usize) -
 }
 
 pub fn make_jmp(dest_ptr: *const c_void) -> Result<Vec<u8>> {
+    debug!("BITNESS: {}", BITNESS);
+
     // If BITNESS is set to 32 then we can get to the destination with a 5-byte direct JMP.
-    println!("Test Hit");
     if BITNESS == 32 {
         let dest_ptr = dest_ptr as u32;
         let hex = hex::decode(
-            format!("E9 {}", hex::encode(dest_ptr.to_ne_bytes()))
+            format!("68{}C3", hex::encode(dest_ptr.to_ne_bytes()))
         )?;
 
         return Ok(hex);
@@ -92,8 +87,7 @@ pub fn make_jmp(dest_ptr: *const c_void) -> Result<Vec<u8>> {
     let upper = ((dest_ptr as usize) >> (mem::size_of::<u32>() * 8)) as u32;
     let lower = ((dest_ptr as usize) & (u32::MAX as usize)) as u32;
 
-    println!("upper: {:x?}", upper);
-    println!("lower: {:x?}", lower);
+    debug!("upper: {:x?}, lower: {:x?}", upper, lower);
 
     // Create the JMP shellcode, embedding the upper and lower byte arrays.
     let jmp_shellcode = format!(
@@ -109,7 +103,7 @@ pub fn make_jmp(dest_ptr: *const c_void) -> Result<Vec<u8>> {
         .replace("\n", "")
         .replace("0x", "");
 
-    println!("{} {}", jmp_shellcode.len() / 2, jmp_shellcode);
+    debug!("{} {}", jmp_shellcode.len() / 2, jmp_shellcode);
 
     Ok(hex::decode(jmp_shellcode)?)
 }

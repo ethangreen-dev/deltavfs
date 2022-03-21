@@ -1,4 +1,5 @@
 pub mod dir_iter;
+pub mod file;
 
 trait TestTrait {
     unsafe fn enable();
