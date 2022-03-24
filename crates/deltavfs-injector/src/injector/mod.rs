@@ -18,7 +18,7 @@ use windows::Win32::System::{
 use shared::inject::loader::Loader;
 use shared::pe::Bitness;
 
-pub unsafe fn inject_into(exec_path: &str, args: &[&str]) -> Result<()> {
+pub unsafe fn start_process(exec_path: &str, args: &[&str]) -> Result<HANDLE> {
     info!(
         "Preparing to inject payload into executable at '{}'",
         exec_path
@@ -43,7 +43,17 @@ pub unsafe fn inject_into(exec_path: &str, args: &[&str]) -> Result<()> {
         }
     });
 
-    let proc_handle = OpenProcess(PROCESS_ALL_ACCESS, false, proc.id());
+    open_process(proc.id())
+}
+
+pub unsafe fn open_process(proc_id: u32) -> Result<HANDLE> {
+    match OpenProcess(PROCESS_ALL_ACCESS, false, proc_id) {
+        HANDLE(0) => Err(anyhow!("OpenProcess failed in start_process.")),
+        x => Ok(x)
+    }
+}
+
+pub unsafe fn inject_into(proc_handle: HANDLE) -> Result<()> {
 
     // Determine the process' bitness.
     let proc_bitness = {
