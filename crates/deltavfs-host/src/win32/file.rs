@@ -1,16 +1,13 @@
 use macros::define_hook;
-use crate::PIPE;
 
 use shared::ipc::models::{
-    Request,
+    Magic,
     ResolvePathRequest
 };
 
 use log::info;
-use rkyv::ser::Serializer;
-use rkyv::ser::serializers::AllocSerializer;
-
 use widestring::WideCString;
+
 use windows::Win32::{
     Foundation::{HANDLE, PWSTR},
     Security::SECURITY_ATTRIBUTES,
@@ -32,20 +29,8 @@ pub unsafe fn test(
     let path = WideCString::from_ptr_str(file_name)
         .to_string()
         .unwrap()
-        .replace(r#"C:\GOG Games\Factorio"#, r#"C:\GOG Games\Not Factorio"#)
-        .replace(r#"C:\Users\green\AppData\Roaming\Factorio"#, r#"C:\GOG Games\Not Factorio\Roaming"#);
-
-    // let req = ResolvePathRequest {
-    //     path
-    // };
-
-    // let mut serializer = AllocSerializer::<256>::default();
-    // serializer.write(&[Request::ResolvePath as u8]).unwrap();
-    // serializer.serialize_value(&req).unwrap();
-
-    // let payload = serializer.into_serializer().into_inner();
-
-    // PIPE.get().unwrap().write(payload.as_slice()).unwrap();
+        .replace(r#"C:\GOG Games\Factorio"#, r#"C:\GOG Games\Not Factorio"#);
+        // .replace(r#"C:\Users\green\AppData\Roaming\Factorio"#, r#"C:\GOG Games\Not Factorio\Hello Dr Mec"#);
 
     let handle = recall(
         WideCString::from_str(path.clone()).unwrap().as_ptr(),
@@ -57,7 +42,7 @@ pub unsafe fn test(
         template_file,
     );
 
-    info!("[CreateFileW] with path '{}' which returned handle {:x?}", path, handle);
+    info!("[CreateFileW] with path '{}' -> {:x?}", path, handle);
 
     handle
 }
@@ -70,6 +55,22 @@ pub unsafe fn find_first_filew(
     info!("[FindFirstFileW] with path '{}'", WideCString::from_ptr_str(file_name.0).to_string().unwrap());
 
     recall(file_name, find_file_data)
+}
+
+#[define_hook("kernel32", "GetModuleFileNameW")]
+pub unsafe fn get_module_file_namew(
+    module: HANDLE,
+    file_name: *mut u16,
+    size: u32
+) -> u32 {
+    let new_path = WideCString::from_str(r#"C:\GOG Games\Factorio\bin\x64\factorio.exe"#).unwrap();
+    let path_size = (new_path.len() + 1) * 2;
+
+    info!("[GetModuleFileNameW] resolved path '{}'", new_path.display());
+
+    std::ptr::copy(new_path.as_ptr(), file_name, path_size);
+
+    path_size as u32
 }
 
 #[define_hook("kernel32", "MapViewOfFile")]
