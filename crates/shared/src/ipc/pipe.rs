@@ -2,6 +2,7 @@ use std::ptr;
 use std::marker::PhantomData;
 
 use anyhow::{anyhow, Result};
+use rkyv::Archive;
 
 use windows::Win32::System::Pipes::{
     CreateNamedPipeA,
@@ -26,11 +27,36 @@ use windows::Win32::Storage::FileSystem::{
 
 #[derive(Debug)]
 pub struct NamedPipe {
-    name: String,
-    handle: HANDLE
+    pub name: String,
+    pub handle: HANDLE,
+    buffer: [u8; 1024]
 }
 
 impl NamedPipe {
+    pub fn with_name(name: &str) -> NamedPipe {
+        NamedPipe {
+            name: name.to_string(),
+            handle: HANDLE(0),
+            buffer: [0u8; 1024]
+        }
+    }
+
+    pub fn connect(&mut self) -> Result<()> {
+        self.handle = unsafe {
+            CreateFileA(
+                self.name.clone(),
+                FILE_GENERIC_READ | FILE_GENERIC_WRITE,
+                FILE_SHARE_READ | FILE_SHARE_WRITE,
+                ptr::null_mut(),
+                OPEN_EXISTING,
+                FILE_ATTRIBUTE_NORMAL,
+                HANDLE(0)
+            )
+        }.ok()?;
+
+        Ok(())
+    }
+
     pub fn new_server(name: &str) -> Result<NamedPipe> {
         let name = name.to_string();
 
@@ -50,7 +76,8 @@ impl NamedPipe {
 
         Ok(NamedPipe{
             name,
-            handle
+            handle,
+            buffer: [0u8; 1024]
         })
     }
 
@@ -71,7 +98,8 @@ impl NamedPipe {
 
         Ok(NamedPipe{
             name,
-            handle
+            handle,
+            buffer: [0u8; 1024]
         })
     }
 
@@ -93,6 +121,24 @@ impl NamedPipe {
         }
     }
 
+    pub fn read(&mut self) -> Result<&[u8]> {
+        let buf_ptr = self.buffer.as_ptr();
+        let mut bytes_read: u32 = 0;
+
+        match unsafe {
+            ReadFile(
+                self.handle,
+                buf_ptr as *mut _,
+                1024,
+                &mut bytes_read as *mut _,
+                ptr::null_mut()
+            )
+        }.as_bool() {
+            true => Ok(&self.buffer[..bytes_read as usize]),
+            false => Err(anyhow!("Failed to read from the pipe."))
+        }
+    }
+
     pub fn as_reader(&self) -> Result<PipeReader> {
         unsafe {
             ConnectNamedPipe(self.handle, ptr::null_mut())
@@ -102,6 +148,7 @@ impl NamedPipe {
     }
 }
 
+#[derive(Debug)]
 pub struct PipeReader<'a> {
     handle: HANDLE,
     buffer: [u8; 1024],
